@@ -1,0 +1,40 @@
+"""Configuração da API, toda vinda de variáveis de ambiente (nada de segredo no código)."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+
+
+def _required(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"variável de ambiente {name} não definida (veja .env.example)")
+    return value
+
+
+@dataclass(frozen=True)
+class Settings:
+    database_url: str                 # papel lumio_app (sujeito a RLS)
+    jwt_secret: str
+    secret_key: str                   # chave Fernet para a community SNMP
+    service_token: str                # usado pelo coletor em /api/internal
+    db_role: str | None = None        # só nos testes: SET ROLE ao conectar
+    token_ttl_minutes: int = 12 * 60
+    snmp_timeout: float = 2.0
+    snmp_retries: int = 1
+
+    def __post_init__(self) -> None:
+        if len(self.jwt_secret) < 32:
+            raise RuntimeError("LUMIO_JWT_SECRET precisa ter pelo menos 32 caracteres")
+
+    @classmethod
+    def from_env(cls) -> "Settings":
+        return cls(
+            database_url=_required("DATABASE_URL"),
+            jwt_secret=_required("LUMIO_JWT_SECRET"),
+            secret_key=_required("LUMIO_SECRET_KEY"),
+            service_token=_required("LUMIO_SERVICE_TOKEN"),
+            db_role=os.environ.get("LUMIO_DB_ROLE") or None,
+            token_ttl_minutes=int(os.environ.get("LUMIO_TOKEN_TTL_MINUTES", 12 * 60)),
+        )
