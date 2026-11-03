@@ -1,0 +1,15 @@
+# Mesmo que coletor-exemplo.yaml, mas apontando para o contêiner do simulador.
+trap_listen: 0.0.0.0:1162
+
+defaults:
+  community: public
+  status_interval: 60
+  optical_interval: 300
+
+olts:
+  - name: olt-centro
+    host: simulator
+    port: 16101
+  - name: olt-zona-norte
+    host: simulator
+    port: 16102

@@ -1,0 +1,17 @@
+# OLTs que este coletor acompanha. A partir da sprint 3 a lista vem da API
+# (tela de cadastro); por enquanto fica neste arquivo.
+trap_listen: 0.0.0.0:1162
+# redis_url: redis://localhost:6379/0   # sem isso, imprime JSON no terminal
+
+defaults:
+  community: public
+  status_interval: 60       # estado das ONUs e saúde da OLT (s)
+  optical_interval: 300     # potência óptica (s)
+
+olts:
+  - name: olt-centro
+    host: 127.0.0.1
+    port: 16101
+  - name: olt-zona-norte
+    host: 127.0.0.1
+    port: 16102

@@ -1,0 +1,21 @@
+# Rede de exemplo do simulador: 2 OLTs Huawei, 128 ONUs no total.
+# A mesma seed gera sempre os mesmos seriais e sinais.
+seed: 42
+base_port: 16101          # 1ª OLT em 16101, 2ª em 16102...
+
+olts:
+  - name: olt-centro
+    model: MA5800-X7
+    host: 0.0.0.0
+    community: public
+    slots: [1]
+    ports_per_slot: 4
+    onus_per_port: 16
+
+  - name: olt-zona-norte
+    model: MA5800-X2
+    host: 0.0.0.0
+    community: public
+    slots: [1]
+    ports_per_slot: 2
+    onus_per_port: 32

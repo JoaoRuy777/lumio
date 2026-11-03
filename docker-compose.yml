@@ -1,0 +1,16 @@
+# Sobe o laboratório da sprint 1: simulador de OLTs + coletor.
+#   docker compose up --build
+#   docker compose logs -f collector      # leituras em JSON
+#   API de cenários: http://localhost:8080/docs
+services:
+  simulator:
+    build: ./simulator
+    command: ["python", "-m", "lumio_sim", "--config", "config/rede-exemplo.yaml", "--trap-target", "collector:1162"]
+    ports:
+      - "8080:8080"
+      - "16101-16102:16101-16102/udp"   # para testar com snmpwalk da sua máquina
+
+  collector:
+    build: ./collector
+    command: ["run", "--config", "config/coletor-docker.yaml"]
+    depends_on: [simulator]
