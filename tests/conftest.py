@@ -76,3 +76,7 @@ async def lab():
     await lab.start()
     yield lab
     lab.close()
+
+
+# Fixtures de banco (Postgres/Redis reais) usadas pelo worker e pela API
+from tests.db_fixtures import pool, test_db_url  # noqa: E402, F401

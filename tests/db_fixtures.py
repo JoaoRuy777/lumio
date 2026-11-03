@@ -1,4 +1,4 @@
-"""Fixtures dos testes do worker: Postgres e Redis de verdade.
+"""Fixtures de banco compartilhadas (worker e API): Postgres e Redis de verdade.
 
 Precisa de:
     LUMIO_TEST_DATABASE_URL  superusuário, ex. postgresql://lumio:lumio-dev@localhost:5432/postgres
@@ -14,8 +14,6 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
-from datetime import datetime, timezone
-
 import asyncpg
 import pytest
 
@@ -62,17 +60,3 @@ async def pool(test_db_url):
     yield pool
     await pool.close()
 
-
-@pytest.fixture
-async def processor(pool):
-    from lumio_worker.processor import Processor
-
-    p = Processor(pool, default_tenant="demo")
-    await p.setup()
-    return p
-
-
-def rec(type_: str, olt: str = "olt-1", ts: datetime | None = None, **data) -> dict:
-    """Registro no mesmo formato que o coletor publica."""
-    ts = ts or datetime.now(timezone.utc)
-    return {"type": type_, "olt": olt, "ts": ts.isoformat(timespec="milliseconds"), **data}
