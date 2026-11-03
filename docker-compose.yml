@@ -1,8 +1,47 @@
-# Sobe o laboratório da sprint 1: simulador de OLTs + coletor.
+# Laboratório completo da Lumio:
 #   docker compose up --build
-#   docker compose logs -f collector      # leituras em JSON
-#   API de cenários: http://localhost:8080/docs
+#   API de cenários do simulador: http://localhost:8080/docs
+#   docker compose logs -f worker        # alarmes abertos/encerrados
+#
+# Os valores padrão abaixo (${VAR:-...}) servem só para desenvolvimento local.
+# Em qualquer outro ambiente, copie .env.example para .env e troque tudo.
+x-db-env: &db-env
+  POSTGRES_DB: ${POSTGRES_DB:-lumio}
+
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      <<: *db-env
+      POSTGRES_USER: ${POSTGRES_USER:-lumio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lumio-dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  migrate:
+    build: ./db
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lumio}:${POSTGRES_PASSWORD:-lumio-dev}@postgres:5432/${POSTGRES_DB:-lumio}
+      LUMIO_APP_DB_PASSWORD: ${LUMIO_APP_DB_PASSWORD:-lumio-app-dev}
+      LUMIO_SYSTEM_DB_PASSWORD: ${LUMIO_SYSTEM_DB_PASSWORD:-lumio-system-dev}
+    depends_on:
+      postgres: { condition: service_healthy }
+
   simulator:
     build: ./simulator
     command: ["python", "-m", "lumio_sim", "--config", "config/rede-exemplo.yaml", "--trap-target", "collector:1162"]
@@ -13,4 +52,33 @@ services:
   collector:
     build: ./collector
     command: ["run", "--config", "config/coletor-docker.yaml"]
-    depends_on: [simulator]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      simulator: { condition: service_started }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: ./worker
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://lumio_system:${LUMIO_SYSTEM_DB_PASSWORD:-lumio-system-dev}@postgres:5432/${POSTGRES_DB:-lumio}
+      LUMIO_RETENTION_DAYS: ${LUMIO_RETENTION_DAYS:-90}
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  # Suíte de testes (não sobe no "up"): docker compose run --rm tests
+  tests:
+    build: { context: ., dockerfile: Dockerfile.test }
+    profiles: [test]
+    volumes: [".:/src"]
+    environment:
+      LUMIO_TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-lumio}:${POSTGRES_PASSWORD:-lumio-dev}@postgres:5432/postgres
+      LUMIO_TEST_REDIS_URL: redis://redis:6379/15
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
