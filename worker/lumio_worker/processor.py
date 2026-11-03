@@ -35,7 +35,8 @@ class Processor:
         self.pool = pool
         self.default_tenant = default_tenant
         self.tenant_id: UUID | None = None
-        self._olts: dict[str, UUID] = {}
+        self._olts: dict[str, UUID] = {}                 # modo YAML: nome -> id
+        self._olt_tenant: dict[UUID, UUID] = {}          # modo API: olt_id -> tenant_id
         self._pons: dict[tuple[UUID, str], UUID] = {}
         self._onus: dict[tuple[UUID, int], UUID] = {}
         self.alarms_opened = 0
@@ -43,7 +44,7 @@ class Processor:
     # ------------------------------------------------------------ setup
 
     async def setup(self) -> None:
-        """Sprint 2: sem API ainda, tudo cai no tenant padrão (criado se faltar)."""
+        """Modo YAML (sem olt_id nos registros): tudo cai no tenant padrão, criado se faltar."""
         async with self.pool.acquire() as conn:
             self.tenant_id = await conn.fetchval(
                 "INSERT INTO tenants (name, slug) VALUES ($1, $1) "
@@ -53,6 +54,7 @@ class Processor:
 
     def _forget_cache(self) -> None:
         self._olts.clear()
+        self._olt_tenant.clear()
         self._pons.clear()
         self._onus.clear()
 
@@ -65,9 +67,17 @@ class Processor:
             return
         try:
             async with self.pool.acquire() as conn, conn.transaction():
-                olt_id = await self._olt(conn, record["olt"])
-                ctx = Ctx(conn, self.tenant_id, olt_id, datetime.fromisoformat(record["ts"]),
-                          record.get("source", "poll"))
+                if record.get("olt_id"):
+                    olt_id = UUID(record["olt_id"])
+                    tenant_id = await self._tenant_of(conn, olt_id)
+                    if tenant_id is None:
+                        log.info("OLT %s não está mais cadastrada; registro ignorado", record["olt_id"])
+                        return
+                else:
+                    if self.tenant_id is None:
+                        await self.setup()
+                    olt_id, tenant_id = await self._olt(conn, record["olt"]), self.tenant_id
+                ctx = Ctx(conn, tenant_id, olt_id, datetime.fromisoformat(record["ts"]), record.get("source", "poll"))
                 await handler(ctx, record)
         except BaseException:
             # ids em cache podem ter vindo da transação desfeita
@@ -75,6 +85,14 @@ class Processor:
             raise
 
     # ------------------------------------------------------------ inventário
+
+    async def _tenant_of(self, conn, olt_id: UUID) -> UUID | None:
+        if olt_id not in self._olt_tenant:
+            tenant_id = await conn.fetchval("SELECT tenant_id FROM olts WHERE id = $1", olt_id)
+            if tenant_id is None:
+                return None
+            self._olt_tenant[olt_id] = tenant_id
+        return self._olt_tenant[olt_id]
 
     async def _olt(self, conn, name: str) -> UUID:
         if name not in self._olts:
