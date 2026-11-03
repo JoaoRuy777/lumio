@@ -37,6 +37,9 @@ class OltConfig:
     optical_interval: float = 300
     timeout: float = 2.0
     retries: int = 1
+    olt_id: str | None = None          # vindo da API (sprint 3); None no modo YAML
+    tenant_id: str | None = None
+    sys_name: str | None = None        # descoberto no cadastro; ajuda a separar traps por OLT
 
     @property
     def target(self) -> Target:
@@ -66,8 +69,15 @@ class OltWorker:
 
     # ------------------------------------------------------------- envio
 
+    def identity(self) -> dict:
+        """Campos que identificam a OLT em todo registro publicado."""
+        ident = {"olt": self.cfg.name}
+        if self.cfg.olt_id:
+            ident.update(olt_id=self.cfg.olt_id, tenant_id=self.cfg.tenant_id)
+        return ident
+
     async def emit(self, type_: str, **data) -> None:
-        await self.sink.publish({"type": type_, "olt": self.cfg.name, "ts": now(), **data})
+        await self.sink.publish({"type": type_, **self.identity(), "ts": now(), **data})
 
     async def _set_reachable(self, ok: bool, error: str | None = None) -> None:
         if ok == self.reachable:

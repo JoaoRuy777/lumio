@@ -28,25 +28,37 @@ def _resolve(host: str) -> str:
 
 class TrapReceiver(asyncio.DatagramProtocol):
     def __init__(self, workers: list[OltWorker]):
-        self.workers = workers
+        self.workers: list[OltWorker] = []
         self.by_ip: dict[str, list[OltWorker]] = {}
-        for w in workers:
-            self.by_ip.setdefault(_resolve(w.cfg.host), []).append(w)
+        self.set_workers(workers)
         self.received = 0
         self.ignored = 0
         self.transport: asyncio.DatagramTransport | None = None
 
+    def set_workers(self, workers: list[OltWorker]) -> None:
+        """Troca a lista de OLTs (o cadastro na API muda com o coletor rodando)."""
+        by_ip: dict[str, list[OltWorker]] = {}
+        for w in workers:
+            by_ip.setdefault(_resolve(w.cfg.host), []).append(w)
+        self.workers, self.by_ip = list(workers), by_ip
+
     def connection_made(self, transport):
         self.transport = transport
 
-    def _find(self, src_ip: str, sys_name: str | None) -> OltWorker | None:
+    def _find(self, src_ip: str, sys_name: str | None) -> list[OltWorker]:
+        """OLTs cadastradas que correspondem à trap.
+
+        Várias OLTs no mesmo IP (o simulador, ou um NAT) são separadas pelo
+        sysName. A mesma OLT cadastrada por dois provedores recebe a trap nos dois.
+        """
         candidates = self.by_ip.get(src_ip, [])
-        if len(candidates) <= 1 or sys_name is None:
-            return candidates[0] if len(candidates) == 1 else None
-        for w in candidates:
-            if sys_name in (w.sys_name, w.cfg.name):
-                return w
-        return None
+        if sys_name is not None:
+            named = [w for w in candidates if sys_name in (w.sys_name, w.cfg.sys_name, w.cfg.name)]
+            if named:
+                return named
+        # sem sysName que desempate: só serve se todas apontam para o mesmo equipamento
+        same_device = len({(w.cfg.host, w.cfg.port) for w in candidates}) == 1
+        return candidates if same_device else []
 
     def datagram_received(self, data, addr):
         try:
@@ -80,17 +92,19 @@ class TrapReceiver(asyncio.DatagramProtocol):
             event = driver.parse_trap(trap_oid, binds)
             if event:
                 break
-        worker = self._find(src_ip, event.sys_name if event else None)
-        if worker is None or event is None or community != worker.cfg.community:
+        matches = [] if event is None else [
+            w for w in self._find(src_ip, event.sys_name) if community == w.cfg.community]
+        if not matches:
             log.info("trap ignorada de %s (oid %s)", src_ip, ".".join(map(str, trap_oid)))
             self.ignored += 1
             return
         self.received += 1
         fields = {k: v for k, v in asdict(event).items() if k not in ("kind", "sys_name") and v is not None}
-        await worker.sink.publish({
-            "type": "event", "olt": worker.cfg.name, "ts": received_at,
-            "kind": event.kind, "source": "trap", **fields,
-        })
+        for worker in matches:
+            await worker.sink.publish({
+                "type": "event", **worker.identity(), "ts": received_at,
+                "kind": event.kind, "source": "trap", **fields,
+            })
 
 
 async def start_trap_receiver(workers: list[OltWorker], host: str, port: int) -> TrapReceiver:
