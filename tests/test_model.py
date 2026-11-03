@@ -1,6 +1,6 @@
 from lumio_sim.model import Network
 
-from conftest import small_config
+from tests.conftest import small_config
 
 
 def net():
