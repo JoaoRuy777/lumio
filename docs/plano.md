@@ -89,3 +89,12 @@ Toda tabela, exceto `tenants`, tem `tenant_id` e política RLS
    no próprio SQL e não precisa de ORM (decidido na sprint 2).
 10. Senhas do compose têm valores padrão só para desenvolvimento local;
     qualquer ambiente real define tudo no `.env` (ver `.env.example`).
+11. A API nunca usa BYPASSRLS: login, cadastro e a lista do coletor passam por
+    três funções `SECURITY DEFINER` no banco (sprint 3).
+12. Coletor lê o cadastro pela API (`/api/internal/collector/olts`, token de
+    serviço) a cada 30 s, em vez de acessar o banco (sprint 3).
+13. Descoberta grava só inventário; o estado online/offline é sempre do worker
+    (sprint 3).
+14. Token JWT no `localStorage`, painel e API no mesmo endereço via nginx (sem
+    CORS); cookie `httpOnly` fica para depois do MVP (sprint 3).
+15. Sem react-router na sprint 3 (duas telas); entra na sprint 4.
