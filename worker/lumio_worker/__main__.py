@@ -50,7 +50,7 @@ async def main() -> None:
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     pool = await connect_pool(dsn)
     processor = Processor(pool, default_tenant=os.environ.get("LUMIO_DEFAULT_TENANT", "demo"))
-    await processor.setup()
+    # setup() (tenant "demo") só roda se aparecer registro sem olt_id (modo YAML)
     r = redis.from_url(redis_url, decode_responses=True)
     consumer = Consumer(
         r, processor,

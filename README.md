@@ -4,13 +4,16 @@ Monitoramento de redes GPON (OLTs e ONUs) para provedores regionais. Este
 repositório é o MVP descrito no TCC *Lumio: concepção e desenvolvimento de
 uma startup de monitoramento automatizado de OLTs* (UNIMAR, 2026).
 
-Estado atual: **sprint 2 (worker de alarmes)** de seis. Próximas: API com
-cadastro de OLTs e multi-tenant (3), dashboard (4), notificações e relatórios (5),
-desempenho e resultados (6). O plano completo e as decisões estão em
+Estado atual: **sprint 3 (API, multi-tenant e cadastro de OLTs)** de seis.
+Próximas: dashboard (4), notificações e relatórios (5), desempenho e
+resultados (6). O plano completo e as decisões estão em
 [`docs/plano.md`](docs/plano.md).
 
 ```
-simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker ──▶ Postgres (RLS)
+                         painel React ──▶ API FastAPI ──▶ Postgres (RLS por provedor)
+                                              ▲                ▲
+                              cadastro de OLTs │                │
+simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker ─────┘
 ```
 
 ## O que já funciona
@@ -20,17 +23,22 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
   para provocar falhas. Cada falha manda a trap correspondente.
 - **Coletor** (`collector/`): consulta as OLTs (estado a cada 60 s, potência
   óptica a cada 5 min), recebe traps e devolve tudo num formato único, que não
-  depende do fabricante. Também tem o `probe`, que é a base do botão
-  "Testar conexão" da tela de cadastro.
-  Publica tudo no Redis Stream `lumio:readings` quando `REDIS_URL` está definido.
+  depende do fabricante. No compose, lê as OLTs **do cadastro na API** a cada
+  30 s (`run-api`); o modo com YAML (`run`) continua para uso avulso.
+  Publica tudo no Redis Stream `lumio:readings`.
 - **Worker de alarmes** (`worker/`): consome o stream (consumer group, com
   confirmação só depois de gravar), guarda leituras e o estado das ONUs no
   Postgres e aplica as regras de alarme abaixo, com deduplicação e latência
   registrada em cada alarme.
+- **API** (`api/`): FastAPI com login JWT, cadastro de provedor, CRUD de OLTs
+  com limite do plano, "Testar conexão" (detecta fabricante e modelo) e
+  descoberta automática de portas PON e ONUs ao salvar. Cada requisição roda
+  com o tenant do usuário, e o **RLS do Postgres** esconde os dados dos outros.
+- **Painel** (`web/`): React; login/cadastro e a tela de OLTs (lista com
+  status da coleta e uso do plano, formulário com "Testar conexão").
 - **Banco** (`db/`): Postgres 17 com Row-Level Security por tenant; migrações
   em SQL puro aplicadas pelo serviço `migrate`.
-- **Testes** (`tests/`): simulador e coletor por UDP de verdade, regras do
-  worker contra Postgres real e o fluxo completo simulador → alarme no banco.
+- **Testes**: 76 no backend (`tests/`) e 11 no painel (`web/src/__tests__`).
 
 ## Rodando com Docker
 
@@ -40,29 +48,37 @@ Só precisa do Docker instalado.
 docker compose up --build
 ```
 
-Sobem: `postgres`, `redis`, `migrate` (aplica o esquema e sai), `simulator`,
-`collector` e `worker`. Sem `.env`, o compose usa senhas padrão que servem
-**só para desenvolvimento**; para qualquer outro uso, `cp .env.example .env`
-e troque as senhas.
+| Endereço | O quê |
+| --- | --- |
+| http://localhost:3000 | painel (crie a conta do provedor e cadastre as OLTs) |
+| http://localhost:8000/api/docs | API da Lumio (Swagger) |
+| http://localhost:8080/docs | API de cenários do simulador (provocar falhas) |
 
-- API do simulador, com a lista de cenários: http://localhost:8080/docs
-- Alarmes abrindo e fechando: `docker compose logs -f worker`
+Sem `.env`, o compose usa senhas e chaves padrão que servem **só para
+desenvolvimento**; para qualquer outro uso, `cp .env.example .env` e troque
+tudo (o arquivo explica como gerar cada chave).
 
-Provocando um rompimento de fibra e vendo o alarme no banco:
+### Testando à mão
 
-```bash
-curl -X POST localhost:8080/scenarios -H 'content-type: application/json' \
-  -d '{"type":"fiber_cut","olt":"olt-centro","pon":"0/1/2"}'
+1. Abra http://localhost:3000 e clique em **Criar conta**.
+2. **Nova OLT**: endereço `simulator`, porta `16101`, community `public`.
+   Clique em **Testar conexão**: aparece *Huawei MA5800-X7 · 4 portas PON · 64 ONUs*.
+3. **Salvar**: a descoberta grava as 4 PONs e as 64 ONUs. Cadastre a segunda
+   (porta `16102`). O plano mostra **2 de 2 OLTs** e o botão de nova OLT trava.
+4. Em até 30 s o coletor pega o cadastro e o status vira **Coletando**.
+5. Provoque um rompimento de fibra:
 
-docker compose exec postgres psql -U lumio -c \
-  "select kind, severity, status, source, latency_ms from alarms order by created_at"
-```
+   ```bash
+   curl -X POST localhost:8080/scenarios -H 'content-type: application/json' \
+     -d '{"type":"fiber_cut","olt":"olt-centro","pon":"0/1/2"}'
+   ```
 
-Aparecem 16 alarmes `onu_offline` e um `pon_fiber_cut` crítico, que é o "pai"
-deles (`parent_id`). `latency_ms` é o tempo entre o coletor receber a trap e o
-alarme ser gravado. Para voltar ao normal: `{"type":"reset"}`.
+   A OLT da porta 16101 passa a mostrar 48/64 ONUs online e 17 alarmes
+   (1 `pon_fiber_cut` crítico + 16 `onu_offline` ligados a ele). A tela se
+   atualiza sozinha a cada 10 s. Para voltar ao normal: `{"type":"reset"}`.
 
-O mesmo teste, automático: `./scripts/smoke.sh` (com a stack no ar).
+O mesmo roteiro, automático: `./scripts/smoke.sh` (com a stack no ar; precisa
+de `curl` e `node`).
 
 ## Regras de alarme
 
@@ -101,8 +117,36 @@ export LUMIO_TEST_REDIS_URL=redis://localhost:6379/15
 pytest -v
 ```
 
-Os testes do worker criam um banco descartável (`lumio_test_xxxx`) e o apagam
-no fim. Sem essas variáveis eles são pulados; no CI rodam sempre.
+Os testes do worker e da API criam um banco descartável (`lumio_test_xxxx`) e
+o apagam no fim. Sem essas variáveis eles são pulados; no CI rodam sempre. A API
+nos testes conecta com o papel `lumio_app`, o mesmo da produção, então os
+testes de isolamento (`tests/api/test_isolation.py`) passam pelo RLS de verdade.
+
+Painel (Node 22+):
+
+```bash
+cd web && npm ci && npm test        # Vitest + Testing Library
+npm run dev                         # http://localhost:5173, usando a API em :8000
+```
+
+## API
+
+Documentação interativa em http://localhost:8000/api/docs. Principais rotas:
+
+| Rota | O quê |
+| --- | --- |
+| `POST /api/auth/signup` | cria o provedor (tenant) e o primeiro usuário, admin |
+| `POST /api/auth/login` | devolve o token JWT (12 h) |
+| `GET /api/auth/me` | usuário, provedor e uso do plano |
+| `GET /api/olts` | OLTs com status da coleta, ONUs online e alarmes ativos |
+| `POST /api/olts` | cadastra e já descobre PONs e ONUs (respeita o limite do plano) |
+| `PATCH /api/olts/{id}`, `DELETE /api/olts/{id}` | altera (refaz a descoberta se o acesso SNMP mudar) ou remove |
+| `POST /api/olts/test-connection` | testar conexão sem salvar |
+| `POST /api/olts/{id}/test-connection`, `POST /api/olts/{id}/discover` | idem para OLT salva (usa a community guardada) |
+| `GET /api/internal/collector/olts` | só para o coletor (header `X-Service-Token`) |
+
+OLT de outro provedor responde **404** (não 403), para nem confirmar que ela existe.
+Usuários `operator` só leem; alterar o cadastro exige `admin`.
 
 ## Rodando sem Docker (Python 3.12+)
 
@@ -155,6 +199,9 @@ vezes (ex.: 10 ticks de `{"minutes": 1}`) em vez de um tick longo.
 {"type": "event",       "olt": "olt-centro", "ts": "...", "kind": "onu_offline", "source": "trap", "pon": "0/1/2", "onu": 0}
 ```
 
+No modo `run-api`, todo registro leva também `olt_id` e `tenant_id` do cadastro;
+é por eles que o worker grava cada leitura e alarme no provedor certo.
+
 Com `REDIS_URL` definido, cada mensagem vai para o Redis Stream `lumio:readings`
 (campo `data`, JSON) e o worker grava no Postgres. Mensagens que o worker não
 consegue processar vão para `lumio:readings:dead`.
@@ -173,21 +220,53 @@ collector/lumio_collector/
   poller.py           agendador de coleta e "testar conexão"
   traps.py            receptor de traps
   sink.py             saída: stdout, memória (testes) ou Redis
+  registry.py         lista de OLTs vinda da API, sincronizada a cada 30 s
 worker/lumio_worker/
   rules.py            limites, severidades e chaves de deduplicação (puro)
   processor.py        grava leituras/estado e abre ou encerra alarmes
   consumer.py         consumer group do Redis Stream, dead letter
+api/lumio_api/
+  db.py               pool e transação com app.tenant_id (RLS)
+  security.py         argon2, JWT e cifra da community (Fernet)
+  snmp.py             testar conexão e descoberta (drivers do coletor)
+  routers/            auth, olts, internal (coletor)
+web/src/
+  pages/              login/cadastro e OLTs
+  components/         formulário de OLT e componentes de tela
 db/
-  migrations/         esquema em SQL (tabelas, RLS, permissões)
+  migrations/         esquema em SQL (tabelas, RLS, permissões, funções)
   migrate.py          aplica as migrações e cria os papéis do banco
-tests/                ponta a ponta (sprint 1) e worker/ (sprint 2)
+tests/                ponta a ponta (sprint 1), worker/ (sprint 2) e api/ (sprint 3)
 scripts/smoke.sh      teste de fumaça da stack no ar
 docs/plano.md         plano das sprints e decisões
 ```
 
-## Decisões (sprint 2)
+## Decisões
 
-A lista completa está em [`docs/plano.md`](docs/plano.md#decisões). As desta sprint:
+A lista completa está em [`docs/plano.md`](docs/plano.md#decisões).
+
+### Sprint 3
+
+- **A API nunca ignora o RLS**: conecta como `lumio_app` e define
+  `app.tenant_id` em toda transação. Login, cadastro e a lista do coletor
+  (que acontecem antes de saber o tenant, ou valem para todos) usam três
+  funções `SECURITY DEFINER` pequenas no banco, em vez de um papel com BYPASSRLS na API.
+- **Community SNMP cifrada** com Fernet (`LUMIO_SECRET_KEY`); a API nunca a
+  devolve (só `has_community`). Trocar a chave invalida as communities salvas.
+- **Coletor lê o cadastro pela API** a cada 30 s, com token de serviço, em vez
+  de acessar o banco. Se a API cair, ele continua coletando a última lista.
+- **Descoberta grava só o inventário** (PONs, ONUs, seriais); o estado
+  online/offline é do worker. Assim uma ONU já offline no cadastro gera alarme
+  na primeira coleta (havia um bug aqui, coberto por teste de regressão).
+- **Token no `localStorage`** e API no mesmo endereço do painel (nginx faz o
+  proxy de `/api`), sem CORS. Risco conhecido: XSS leria o token; o painel não
+  renderiza HTML vindo de usuário. Cookie `httpOnly` fica para depois do MVP.
+- **Sem react-router** por enquanto: são duas telas; entra na sprint 4.
+- **Segredo JWT com no mínimo 32 caracteres**: a API não sobe com menos.
+- **Plano**: limite de OLTs por provedor em `tenants.olt_limit` (padrão 2);
+  ainda não há tela para mudar de plano.
+
+### Sprint 2
 
 - **Postgres puro, sem TimescaleDB**: o volume do MVP cabe numa tabela
   indexada; o worker apaga leituras com mais de `LUMIO_RETENTION_DAYS` (90).
@@ -195,9 +274,8 @@ A lista completa está em [`docs/plano.md`](docs/plano.md#decisões). As desta s
 - **Papéis do banco**: o worker usa `lumio_system` (BYPASSRLS, processa todos
   os tenants); a API da sprint 3 vai usar `lumio_app`, sujeito ao RLS. Um teste
   já comprova que `lumio_app` não enxerga alarmes de outro tenant.
-- **Tenant `demo` provisório**: sem API ainda, o worker cria o tenant `demo` e
-  registra as OLTs que o coletor relata. Na sprint 3 o coletor passa a buscar
-  as OLTs cadastradas na API.
+- **Tenant `demo`** (só no modo YAML do coletor): registro sem `olt_id` cai no
+  tenant `demo`, criado na hora. No compose (modo `run-api`) ele não é usado.
 - **Entrega "pelo menos uma vez"**: o XACK só acontece depois do commit;
   reprocessar é seguro graças à deduplicação. Falha de infraestrutura (banco ou
   Redis fora) não confirma a mensagem; erro de dado vai para o dead letter.

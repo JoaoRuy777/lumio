@@ -6,6 +6,7 @@ COPY simulator/requirements.txt simulator/
 COPY collector/requirements.txt collector/
 COPY worker/requirements.txt worker/
 COPY db/requirements.txt db/
+COPY api/requirements.txt api/
 RUN pip install --no-cache-dir -r requirements-dev.txt
 ENV PYTHONDONTWRITEBYTECODE=1
 CMD ["pytest", "-v", "-p", "no:cacheprovider"]

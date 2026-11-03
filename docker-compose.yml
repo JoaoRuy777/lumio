@@ -1,18 +1,20 @@
 # Laboratório completo da Lumio:
 #   docker compose up --build
-#   API de cenários do simulador: http://localhost:8080/docs
-#   docker compose logs -f worker        # alarmes abertos/encerrados
+#   Dashboard (cadastro de OLTs):    http://localhost:3000
+#   API da Lumio (Swagger):          http://localhost:8000/api/docs
+#   API de cenários do simulador:    http://localhost:8080/docs
+#   docker compose logs -f worker    # alarmes abertos/encerrados
 #
 # Os valores padrão abaixo (${VAR:-...}) servem só para desenvolvimento local.
 # Em qualquer outro ambiente, copie .env.example para .env e troque tudo.
-x-db-env: &db-env
-  POSTGRES_DB: ${POSTGRES_DB:-lumio}
+x-service-token: &service-token
+  LUMIO_SERVICE_TOKEN: ${LUMIO_SERVICE_TOKEN:-dev-service-token-troque-em-producao}
 
 services:
   postgres:
     image: postgres:17-alpine
     environment:
-      <<: *db-env
+      POSTGRES_DB: ${POSTGRES_DB:-lumio}
       POSTGRES_USER: ${POSTGRES_USER:-lumio}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lumio-dev}
     ports:
@@ -42,6 +44,30 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  api:
+    build: { context: ., dockerfile: api/Dockerfile }
+    environment:
+      <<: *service-token
+      DATABASE_URL: postgresql://lumio_app:${LUMIO_APP_DB_PASSWORD:-lumio-app-dev}@postgres:5432/${POSTGRES_DB:-lumio}
+      LUMIO_JWT_SECRET: ${LUMIO_JWT_SECRET:-dev-jwt-secret-com-pelo-menos-32-caracteres}
+      # chave Fernet só de desenvolvimento; gere outra para produção (ver .env.example)
+      LUMIO_SECRET_KEY: ${LUMIO_SECRET_KEY:-FzmoxWgkS_PkkB-SvoKahxsim_yz5CR0b6dZxP03CYU=}
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 2s
+      retries: 30
+
+  web:
+    build: ./web
+    ports:
+      - "3000:80"
+    depends_on:
+      api: { condition: service_healthy }
+
   simulator:
     build: ./simulator
     command: ["python", "-m", "lumio_sim", "--config", "config/rede-exemplo.yaml", "--trap-target", "collector:1162"]
@@ -51,12 +77,15 @@ services:
 
   collector:
     build: ./collector
-    command: ["run", "--config", "config/coletor-docker.yaml"]
+    # OLTs vêm do cadastro na API (tela em localhost:3000), relidas a cada 30 s
+    command: ["run-api", "--api-url", "http://api:8000"]
     environment:
+      <<: *service-token
       REDIS_URL: redis://redis:6379/0
     depends_on:
       simulator: { condition: service_started }
       redis: { condition: service_healthy }
+      api: { condition: service_healthy }
 
   worker:
     build: ./worker
