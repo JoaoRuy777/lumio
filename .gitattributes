@@ -1,0 +1,4 @@
+# Mantém LF no repositório e na cópia de trabalho (scripts e Dockerfiles rodam em Linux)
+* text=auto eol=lf
+*.png binary
+*.pdf binary

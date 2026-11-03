@@ -3,10 +3,39 @@ on: [push, pull_request]
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lumio
+          POSTGRES_PASSWORD: lumio-ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lumio" --health-interval 2s --health-retries 30
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 2s --health-retries 30
+    env:
+      LUMIO_TEST_DATABASE_URL: postgresql://lumio:lumio-ci@localhost:5432/postgres
+      LUMIO_TEST_REDIS_URL: redis://localhost:6379/15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
-      - run: pytest -v
+      # -rs mostra testes pulados: no CI nenhum deveria ser pulado
+      - run: pytest -v -rs
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d --build
+      - run: ./scripts/smoke.sh
+      - if: always()
+        run: docker compose logs --tail 100
+      - if: always()
+        run: docker compose down -v
