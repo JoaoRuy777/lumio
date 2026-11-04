@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pysnmp.error import PySnmpError
 from pysnmp.hlapi.v3arch.asyncio import (
     CommunityData,
     ContextData,
@@ -41,7 +42,12 @@ class SnmpClient:
         self.max_repetitions = max_repetitions
 
     async def _transport(self, t: Target):
-        return await UdpTransportTarget.create((t.host, t.port), timeout=t.timeout, retries=t.retries)
+        try:
+            return await UdpTransportTarget.create((t.host, t.port), timeout=t.timeout, retries=t.retries)
+        except PySnmpError as e:
+            # endereço que não resolve no DNS (ou inválido): é "OLT sem resposta",
+            # não um erro do programa
+            raise SnmpError(f"endereço {t.host!r} não encontrado") from e
 
     async def get(self, t: Target, *oids: Oid) -> dict[Oid, object]:
         err, status, index, binds = await get_cmd(
