@@ -84,7 +84,7 @@ export function OltsPage({ me }: { me: Me }) {
       )}
 
       {editing && (
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-slate-200 bg-surface p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-medium">{editing.mode === "new" ? "Nova OLT" : `Editar ${editing.olt.name}`}</h2>
           <OltForm
             key={editing.mode === "edit" ? editing.olt.id : "new"}
@@ -95,7 +95,7 @@ export function OltsPage({ me }: { me: Me }) {
         </section>
       )}
 
-      <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-x-auto rounded-xl border border-slate-200 bg-surface shadow-sm">
         {isPending ? (
           <p className="p-6 text-sm text-slate-500">Carregando…</p>
         ) : error ? (

@@ -43,7 +43,7 @@ export function AlarmsPage() {
 
       {/* filtros numa linha só, acima da lista */}
       <div className="flex flex-wrap items-center gap-4">
-        <div role="tablist" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+        <div role="tablist" className="inline-flex rounded-lg border border-slate-200 bg-surface p-0.5">
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -62,7 +62,7 @@ export function AlarmsPage() {
             <label
               key={s}
               className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
-                severity.includes(s) ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-white text-slate-700"
+                severity.includes(s) ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 bg-surface text-slate-700"
               }`}
             >
               <input type="checkbox" className="sr-only" checked={severity.includes(s)} onChange={() => toggleSeverity(s)} />

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes } from "react-router";
 import { api, LOGOUT_EVENT, session, type Me, type Overview } from "./api";
 import { LiveIndicator, LiveProvider } from "./live";
+import { ThemeToggle } from "./theme";
 import { AlarmsPage } from "./pages/AlarmsPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OltPage } from "./pages/OltPage";
@@ -86,7 +87,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   return (
     <LiveProvider>
       <div className="min-h-screen">
-        <header className="border-b border-slate-200 bg-white">
+        <header className="border-b border-slate-200 bg-surface">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
             <div className="flex items-baseline gap-3">
               <span className="text-lg font-semibold tracking-tight text-brand-700">Lumio</span>
@@ -94,6 +95,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             </div>
             <div className="flex items-center gap-4 text-sm">
               <LiveIndicator />
+              <ThemeToggle />
               {me && <span className="hidden text-slate-600 sm:inline">{me.name}</span>}
               <button className="text-slate-500 hover:text-slate-800" onClick={onLogout}>
                 Sair

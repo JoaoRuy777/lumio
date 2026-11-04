@@ -7,7 +7,8 @@ import { dateTime, dbm, RX_LIMIT_DBM } from "../format";
 // da série 1; o limite de alarme é uma linha de referência rotulada.
 const SERIES = "#2a78d6";
 const LIMIT = "#d03b3b";
-const AXIS_TEXT = { fill: "#64748b", fontSize: 12 };
+// cores pelas variáveis do tema: o gráfico acompanha o modo noturno
+const AXIS_TEXT = { fill: "var(--color-slate-500)", fontSize: 12 };
 
 function tick(ts: number, spanHours: number) {
   const d = new Date(ts);
@@ -71,7 +72,7 @@ export function RxChart({ readings, hours }: { readings: Readings; hours: number
         <div className="h-64" role="img" aria-label={`Gráfico da potência recebida nas últimas ${hours} horas; mínimo ${dbm(Math.min(...values))}`}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={points} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-              <CartesianGrid vertical={false} stroke="#e2e8f0" />
+              <CartesianGrid vertical={false} stroke="var(--color-slate-200)" />
               <XAxis
                 dataKey="t"
                 type="number"
@@ -88,21 +89,21 @@ export function RxChart({ readings, hours }: { readings: Readings; hours: number
                 y={RX_LIMIT_DBM}
                 stroke={LIMIT}
                 strokeDasharray="4 4"
-                label={{ value: `limite de alarme ${RX_LIMIT_DBM} dBm`, position: "insideTopLeft", fill: "#52514e", fontSize: 12 }}
+                label={{ value: `limite de alarme ${RX_LIMIT_DBM} dBm`, position: "insideTopLeft", fill: "var(--color-slate-600)", fontSize: 12 }}
               />
               <Tooltip
-                cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
+                cursor={{ stroke: "var(--color-slate-400)", strokeWidth: 1 }}
                 labelFormatter={(t) => dateTime(new Date(Number(t)).toISOString())}
                 formatter={(v) => [dbm(Number(v)), readings.bucket_s > 0 ? "RX (média)" : "RX"]}
-                contentStyle={{ borderRadius: 8, borderColor: "#e2e8f0", fontSize: 13 }}
+                contentStyle={{ borderRadius: 8, borderColor: "var(--color-slate-200)", backgroundColor: "var(--color-surface)", color: "var(--color-slate-800)", fontSize: 13 }}
               />
               <Line
                 type="monotone"
                 dataKey="rx"
                 stroke={SERIES}
                 strokeWidth={2}
-                dot={points.length < 3 ? { r: 4, fill: SERIES, stroke: "#fff", strokeWidth: 2 } : false}
-                activeDot={{ r: 5, fill: SERIES, stroke: "#fff", strokeWidth: 2 }}
+                dot={points.length < 3 ? { r: 4, fill: SERIES, stroke: "var(--color-surface)", strokeWidth: 2 } : false}
+                activeDot={{ r: 5, fill: SERIES, stroke: "var(--color-surface)", strokeWidth: 2 }}
                 isAnimationActive={false}
               />
             </LineChart>

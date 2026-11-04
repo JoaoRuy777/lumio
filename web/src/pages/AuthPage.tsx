@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError, session } from "../api";
+import { ThemeToggle } from "../theme";
 import { Button, Field, inputClass } from "../components/ui";
 
 type Mode = "login" | "signup";
@@ -30,11 +31,12 @@ export function AuthPage({ onLogin }: { onLogin: () => void }) {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
+    <main className="relative flex min-h-screen items-center justify-center px-4">
+      <ThemeToggle className="absolute top-4 right-4" />
       <div className="w-full max-w-sm">
         <h1 className="mb-1 text-3xl font-semibold tracking-tight text-brand-700">Lumio</h1>
         <p className="mb-6 text-sm text-slate-500">Monitoramento de OLTs para provedores</p>
-        <form onSubmit={submit} className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form onSubmit={submit} className="space-y-4 rounded-xl border border-slate-200 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium">{mode === "login" ? "Entrar" : "Criar conta do provedor"}</h2>
           {mode === "signup" && (
             <>

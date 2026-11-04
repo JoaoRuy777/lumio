@@ -18,10 +18,10 @@ export function OverviewPage() {
 
   if (d.olts.total === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+      <div className="rounded-xl border border-dashed border-slate-300 bg-surface p-10 text-center">
         <h1 className="text-lg font-medium">Nenhuma OLT cadastrada ainda</h1>
         <p className="mt-1 text-sm text-slate-500">Cadastre a primeira OLT para a Lumio começar a monitorar a rede.</p>
-        <Link to="/olts" className="mt-4 inline-block rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700">
+        <Link to="/olts" className="mt-4 inline-block rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-800">
           Cadastrar OLT
         </Link>
       </div>

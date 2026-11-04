@@ -1,10 +1,61 @@
 @import "tailwindcss";
 
+/* dark: só para os poucos casos que precisam de ajuste específico */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
   --color-brand-50: #eef6ff;
   --color-brand-500: #2f7cf6;
   --color-brand-600: #1f63d6;
   --color-brand-700: #1a4fab;
+  --color-brand-800: #173f88;
+  /* fundo de cartões, tabelas e campos */
+  --color-surface: #ffffff;
+}
+
+/*
+ * Modo noturno: as telas usam as mesmas classes nos dois temas. Aqui as cores
+ * neutras (slate) se invertem e os tons claros dos avisos (fundo 50, borda
+ * 200/300, texto 700-900) viram versões escuras/claras com contraste. As cores
+ * "cheias" (botões, bolinhas de status, severidade) ficam iguais.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-surface: #131c2e;
+
+  --color-slate-50: #0b1120;
+  --color-slate-100: #1a2336;
+  --color-slate-200: #263147;
+  --color-slate-300: #354259;
+  --color-slate-400: #64728a;
+  --color-slate-500: #8e9aae;
+  --color-slate-600: #a6b0c2;
+  --color-slate-700: #c4ccd8;
+  --color-slate-800: #dde3ec;
+  --color-slate-900: #f1f4f8;
+
+  --color-brand-50: #15284d;
+  --color-brand-600: #3a7bec;
+  --color-brand-700: #93bbff;
+
+  --color-red-50: #2b1519;
+  --color-red-200: #5c242b;
+  --color-red-700: #f6a5a5;
+
+  --color-emerald-50: #0f2a21;
+  --color-emerald-300: #1f5e47;
+  --color-emerald-700: #6fdcb0;
+  --color-emerald-800: #8ce8c2;
+  --color-emerald-900: #b3f2d8;
+
+  --color-amber-50: #2c2211;
+  --color-amber-300: #6a5222;
+  --color-amber-700: #f5bd5c;
+  --color-amber-800: #f9cf85;
+  --color-amber-900: #fbe0ad;
+
+  --color-sky-50: #10263a;
+  --color-sky-800: #9fd6f5;
 }
 
 body {
