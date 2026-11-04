@@ -141,6 +141,35 @@ Com vários provedores, cada um precisa do seu túnel. Para escalar, o passo
 seguinte (fora do MVP) é rodar um coletor dentro de cada provedor, enviando
 os dados para a nuvem por HTTPS.
 
+## Vercel (parcial, não testado)
+
+O `vercel.json` publica só **o painel (`web`) e a API (`api`)**, no mesmo
+domínio: `/api/*` vai para a API e o resto para o painel. Coletor, worker,
+notificador e simulador **não rodam na Vercel** (são processos contínuos e o
+coletor recebe traps por UDP), então, sem um servidor para eles, a Lumio
+abre as telas mas não coleta nem gera alarmes.
+
+O que configurar no projeto da Vercel:
+
+1. **Postgres externo** (ex.: Neon, Supabase). Rode as migrações uma vez, do
+   seu computador:
+   `docker compose run --rm --no-deps -e DATABASE_URL=<url do admin> -e LUMIO_APP_DB_PASSWORD=... -e LUMIO_SYSTEM_DB_PASSWORD=... migrate`.
+   A migração cria o papel `lumio_system` com `BYPASSRLS`; confira se o
+   provedor permite (alguns não dão superusuário).
+2. **Variáveis de ambiente** do serviço `api`: `DATABASE_URL` (papel
+   `lumio_app`), `LUMIO_JWT_SECRET`, `LUMIO_SECRET_KEY`, `LUMIO_SERVICE_TOKEN`
+   (gere com `deploy/gen-env.sh` e copie do `.env`) e, opcional, `REDIS_URL`
+   (ex.: Upstash) para o tempo real; sem ele o painel atualiza a cada 30 s.
+3. Teste com `vercel dev` e depois um deploy de *preview*. A conferir no
+   primeiro teste: as rotas do painel (ex.: abrir `/olts/<id>` direto) caírem
+   no `index.html`, e o "Testar conexão" da API alcançar a OLT (a Vercel não
+   está na rede do provedor).
+
+O restante (coletor, worker, notificador) iria para uma VPS com o mesmo
+`docker-compose.yml`, apontando o coletor para o domínio da Vercel
+(`--api-url https://seu-projeto.vercel.app`) e o worker e o notificador para
+o mesmo Postgres e Redis.
+
 ## Checklist de segurança
 
 - [ ] `.env` gerado pelo `gen-env.sh`, com permissão 600 e cópia guardada fora do servidor

@@ -1,0 +1,5 @@
+# Só para a Vercel: dependências do serviço "api" (vercel.json), que roda a
+# partir da raiz do repositório. O Docker continua usando os requirements de
+# cada serviço; para desenvolver, veja requirements-dev.txt.
+-r api/requirements.txt
+-r collector/requirements.txt
