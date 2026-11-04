@@ -50,7 +50,8 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
   alarme novo aparece em ~1 s, sem recarregar. Se o tempo real cair, as telas
   continuam atualizando a cada 30 s e o topo mostra "Sem tempo real".
   Também: **Relatórios** (período, números, baixar CSV/PDF) e **Notificações**
-  (canais, mensagem de teste, histórico de entregas).
+  (canais, mensagem de teste, histórico de entregas) e **Usuários** (o administrador
+  cria acessos para a equipe, como administrador ou operador).
 - **Banco** (`db/`): Postgres 17 com Row-Level Security por tenant; migrações
   em SQL puro aplicadas pelo serviço `migrate`.
 - **Desempenho** (`scripts/bench/`): teste de carga com o simulador em vários
@@ -59,7 +60,7 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
 - **Produção** (`docker-compose.prod.yml`, `deploy/`): HTTPS automático
   (Caddy), só as portas 80/443 expostas, segredos obrigatórios no `.env`,
   backup diário do banco.
-- **Testes**: 124 no backend (`tests/`), 27 no painel (`web/src/__tests__`) e
+- **Testes**: 137 no backend (`tests/`), 30 no painel (`web/src/__tests__`) e
   1 de ponta a ponta no navegador (`web/e2e`, Playwright).
 
 ## Rodando com Docker

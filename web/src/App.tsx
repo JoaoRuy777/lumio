@@ -14,6 +14,7 @@ import { OnusPage } from "./pages/OnusPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { UsersPage } from "./pages/UsersPage";
 
 export function App() {
   const [loggedIn, setLoggedIn] = useState(() => session.get() !== null);
@@ -61,6 +62,7 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
         <Route path="alarms" element={<AlarmsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="notifications" element={<MeGate>{(me) => <NotificationsPage me={me} />}</MeGate>} />
+        <Route path="users" element={<MeGate>{(me) => <UsersPage me={me} />}</MeGate>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
@@ -121,6 +123,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             </NavLink>
             <NavLink to="/notifications" className={navClass}>
               Notificações
+            </NavLink>
+            <NavLink to="/users" className={navClass}>
+              Usuários
             </NavLink>
           </nav>
         </header>
