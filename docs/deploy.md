@@ -164,10 +164,22 @@ O que configurar no projeto da Vercel:
    no `index.html`, e o "Testar conexão" da API alcançar a OLT (a Vercel não
    está na rede do provedor).
 
-O restante (coletor, worker, notificador) iria para uma VPS com o mesmo
-`docker-compose.yml`, apontando o coletor para o domínio da Vercel
-(`--api-url https://seu-projeto.vercel.app`) e o worker e o notificador para
-o mesmo Postgres e Redis.
+O restante (simulador, coletor, worker e notificador) roda com o
+`docker-compose.coleta.yml`, numa máquina com Docker: o seu computador (na
+apresentação) ou uma VPS (ligado o tempo todo). Ele usa o mesmo Neon e o
+mesmo Redis da Vercel e lê as OLTs da API da Vercel:
+
+```bash
+# no .env.lumio.local: LUMIO_API_URL="https://seu-projeto.vercel.app" e REDIS_URL="rediss://..."
+docker compose --env-file .env.lumio.local -f docker-compose.coleta.yml up -d --build
+```
+
+No painel, cadastre as OLTs simuladas com endereço `simulator`, portas
+`16101` e `16102`, community `public`. A descoberta roda na Vercel, que não
+enxerga o simulador, então a OLT é salva com "sem resposta" e as ONUs
+aparecem na primeira coleta (até 1 minuto). Falhas para a demonstração:
+`http://localhost:8080/docs` (API de cenários do simulador); e-mails:
+`http://localhost:8025`.
 
 ## Banco no Neon
 

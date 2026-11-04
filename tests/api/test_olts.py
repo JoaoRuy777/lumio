@@ -64,6 +64,19 @@ async def test_olt_fora_do_ar_e_salva_mesmo_assim(client, lab):
     assert resp.json()["olt"]["last_error"]
 
 
+async def test_endereco_que_nao_existe_e_sem_resposta_nao_erro_500(client, lab):
+    """Nome que não resolve no DNS (erro de digitação, ou "simulator" visto da Vercel)."""
+    headers = await signup(client)
+    body = {**olt_body(lab), "host": "olt-que-nao-existe.invalid"}
+    test = await client.post("/api/olts/test-connection", headers=headers,
+                             json={k: body[k] for k in ("host", "snmp_port", "community")})
+    assert test.status_code == 200 and test.json()["ok"] is False
+    assert "não encontrado" in test.json()["error"]
+    resp = await client.post("/api/olts", headers=headers, json=body)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["discovery"]["ok"] is False
+
+
 async def test_lista_mostra_uso_do_plano_e_bloqueia_excesso(client, lab):
     headers = await signup(client)
     for name in ("olt-1", "olt-2"):
