@@ -67,12 +67,12 @@ test("falha no simulador aparece no dashboard em tempo real", async ({ page, req
   await expect(row.getByTitle("tempo em atendimento")).toBeVisible();
   await row.getByRole("link", { name: "Rompimento de fibra" }).click();
   await expect(page.getByText("Em atendimento", { exact: true })).toBeVisible();
-  await page.getByLabel("Anotação").fill("Equipe de campo enviada");
+  await page.getByLabel("Anotação", { exact: true }).fill("Equipe de campo enviada");
   await page.getByRole("button", { name: "Anotar" }).click();
   await expect(page.getByRole("list", { name: "Linha do tempo" }).getByText("Equipe de campo enviada")).toBeVisible();
   await page.getByRole("button", { name: "Encerrar atendimento" }).click();
-  await page.getByLabel("Causa").selectOption("fiber_third_party");
-  await page.getByLabel("O que foi feito").fill("Fibra rompida por obra; fusão refeita");
+  await page.getByLabel("Causa", { exact: true }).selectOption("fiber_third_party");
+  await page.getByLabel("O que foi feito", { exact: true }).fill("Fibra rompida por obra; fusão refeita");
   await page.getByRole("button", { name: "Encerrar", exact: true }).click();
   await expect(page.getByText("Atendimento encerrado")).toBeVisible();
   await expect(page.getByRole("list", { name: "Linha do tempo" }).getByText(/encerrou o atendimento/)).toBeVisible();
