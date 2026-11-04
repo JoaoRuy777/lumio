@@ -182,6 +182,23 @@ aparecem na primeira coleta (até 1 minuto). Falhas para a demonstração:
 `normalizar` volta ao normal); e-mails:
 `http://localhost:8025`.
 
+**E-mails de verdade (Gmail).** Sem SMTP, os alertas ficam no Mailpit. Para
+enviar pelo Gmail: ative a verificação em duas etapas na conta, gere uma
+**senha de app** em https://myaccount.google.com/apppasswords (16 letras; a
+senha normal da conta é recusada) e acrescente ao `.env.lumio.local`:
+
+```bash
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_SECURITY="starttls"
+SMTP_USER="sua.conta@gmail.com"
+SMTP_PASSWORD="senha de app, sem espaços"
+SMTP_FROM="Lumio Alertas <sua.conta@gmail.com>"
+```
+
+Depois: `docker compose --env-file .env.lumio.local -f docker-compose.coleta.yml up -d notifier`.
+Use **Enviar teste** em Notificações; se o login falhar, a entrega mostra o motivo.
+
 ## Banco no Neon
 
 O projeto Neon está descrito em `neon.ts` (região São Paulo, `sa-east-1`).
