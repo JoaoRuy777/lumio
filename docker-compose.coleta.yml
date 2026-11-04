@@ -1,0 +1,73 @@
+# A "parte de dados" da Lumio quando o painel e a API estão na Vercel:
+# simulador de OLTs, coletor, worker e notificador, usando o MESMO Postgres
+# (Neon) e Redis (Upstash) da Vercel. Roda em qualquer máquina com Docker: o
+# seu computador (na apresentação) ou uma VPS (ligado o tempo todo).
+#
+#   docker compose -p lumio-coleta --env-file .env.lumio.local -f docker-compose.coleta.yml up -d --build
+#
+# Precisa no .env.lumio.local (gerado por scripts/neon_setup.py):
+#   LUMIO_API_URL              endereço do site na Vercel, ex.: https://lumio-xxx.vercel.app
+#   LUMIO_SERVICE_TOKEN        o mesmo cadastrado na Vercel
+#   LUMIO_SECRET_KEY           o mesmo cadastrado na Vercel (abre a community SNMP)
+#   LUMIO_SYSTEM_DATABASE_URL  Neon, conexão direta, papel lumio_system
+#   REDIS_URL                  o mesmo cadastrado na Vercel (Upstash, rediss://)
+#
+# No painel, cadastre as OLTs simuladas com endereço "simulator", portas
+# 16101 e 16102, community "public". O "Testar conexão" e a descoberta rodam
+# na Vercel, que não enxerga o simulador: a OLT é salva assim mesmo e as ONUs
+# aparecem com a primeira coleta (até 1 minuto).
+#
+# Cenários de falha (rompimento de fibra etc.): API do simulador em
+# http://localhost:8080/docs. E-mails de alerta: http://localhost:8025 (Mailpit).
+name: lumio-coleta
+
+x-required: &required
+  LUMIO_SERVICE_TOKEN: ${LUMIO_SERVICE_TOKEN:?rode scripts/neon_setup.py}
+  REDIS_URL: ${REDIS_URL:?defina REDIS_URL (Upstash) no .env.lumio.local}
+
+services:
+  simulator:
+    build: ./simulator
+    restart: unless-stopped
+    command: ["python", "-m", "lumio_sim", "--config", "config/rede-exemplo.yaml", "--trap-target", "collector:1162"]
+    ports:
+      - "127.0.0.1:8080:8080"     # cenários de falha, só nesta máquina
+
+  collector:
+    build: ./collector
+    restart: unless-stopped
+    command: ["run-api", "--api-url", "${LUMIO_API_URL:?defina LUMIO_API_URL (endereço da Vercel) no .env.lumio.local}"]
+    environment:
+      <<: *required
+    depends_on: [simulator]
+
+  worker:
+    build: ./worker
+    restart: unless-stopped
+    environment:
+      <<: *required
+      DATABASE_URL: ${LUMIO_SYSTEM_DATABASE_URL:?rode scripts/neon_setup.py}
+      LUMIO_RETENTION_DAYS: ${LUMIO_RETENTION_DAYS:-90}
+
+  notifier:
+    build: ./worker
+    restart: unless-stopped
+    command: ["python", "-m", "lumio_worker", "notify"]
+    environment:
+      DATABASE_URL: ${LUMIO_SYSTEM_DATABASE_URL:?rode scripts/neon_setup.py}
+      LUMIO_SECRET_KEY: ${LUMIO_SECRET_KEY:?rode scripts/neon_setup.py}
+      LUMIO_PUBLIC_URL: ${LUMIO_API_URL}
+      # sem SMTP configurado, os e-mails vão para o Mailpit (http://localhost:8025)
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Lumio <alertas@lumio.local>}
+      SMTP_SECURITY: ${SMTP_SECURITY:-none}
+      LUMIO_WEBHOOK_ALLOW_PRIVATE: "false"
+
+  mailpit:
+    image: axllent/mailpit:v1.33.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
