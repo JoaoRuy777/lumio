@@ -4,16 +4,15 @@ Monitoramento de redes GPON (OLTs e ONUs) para provedores regionais. Este
 repositório é o MVP descrito no TCC *Lumio: concepção e desenvolvimento de
 uma startup de monitoramento automatizado de OLTs* (UNIMAR, 2026).
 
-Estado atual: **sprint 3 (API, multi-tenant e cadastro de OLTs)** de seis.
-Próximas: dashboard (4), notificações e relatórios (5), desempenho e
-resultados (6). O plano completo e as decisões estão em
-[`docs/plano.md`](docs/plano.md).
+Estado atual: **sprint 4 (dashboard em tempo real)** de seis. Próximas:
+notificações e relatórios (5), desempenho e resultados (6). O plano completo
+e as decisões estão em [`docs/plano.md`](docs/plano.md).
 
 ```
-                         painel React ──▶ API FastAPI ──▶ Postgres (RLS por provedor)
-                                              ▲                ▲
-                              cadastro de OLTs │                │
-simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker ─────┘
+                     painel React ◀─SSE─ API FastAPI ──▶ Postgres (RLS por provedor)
+                                             ▲    ▲              ▲
+                          cadastro de OLTs   │    └─ Redis Pub/Sub ◀─┐
+simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker ──────────┘
 ```
 
 ## O que já funciona
@@ -28,17 +27,22 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
   Publica tudo no Redis Stream `lumio:readings`.
 - **Worker de alarmes** (`worker/`): consome o stream (consumer group, com
   confirmação só depois de gravar), guarda leituras e o estado das ONUs no
-  Postgres e aplica as regras de alarme abaixo, com deduplicação e latência
-  registrada em cada alarme.
+  Postgres, aplica as regras de alarme abaixo (deduplicação e latência
+  registrada) e, depois do commit, avisa o painel por Redis Pub/Sub.
 - **API** (`api/`): FastAPI com login JWT, cadastro de provedor, CRUD de OLTs
-  com limite do plano, "Testar conexão" (detecta fabricante e modelo) e
-  descoberta automática de portas PON e ONUs ao salvar. Cada requisição roda
-  com o tenant do usuário, e o **RLS do Postgres** esconde os dados dos outros.
-- **Painel** (`web/`): React; login/cadastro e a tela de OLTs (lista com
-  status da coleta e uso do plano, formulário com "Testar conexão").
+  com limite do plano, "Testar conexão", descoberta automática de PONs e ONUs,
+  rotas do painel (visão geral, PONs, ONUs, histórico de potência, alarmes com
+  reconhecimento) e **avisos em tempo real por SSE**. Cada requisição roda com
+  o tenant do usuário, e o **RLS do Postgres** esconde os dados dos outros.
+- **Painel** (`web/`): React; visão geral, alarmes (abertos e histórico,
+  rompimento de fibra agrupando as ONUs, reconhecer), OLTs (cadastro e detalhe
+  por PON), ONUs (filtros e gráfico de potência). Atualiza em tempo real: um
+  alarme novo aparece em ~1 s, sem recarregar. Se o tempo real cair, as telas
+  continuam atualizando a cada 30 s e o topo mostra "Sem tempo real".
 - **Banco** (`db/`): Postgres 17 com Row-Level Security por tenant; migrações
   em SQL puro aplicadas pelo serviço `migrate`.
-- **Testes**: 76 no backend (`tests/`) e 11 no painel (`web/src/__tests__`).
+- **Testes**: 87 no backend (`tests/`), 21 no painel (`web/src/__tests__`) e
+  1 de ponta a ponta no navegador (`web/e2e`, Playwright).
 
 ## Rodando com Docker
 
@@ -61,24 +65,38 @@ tudo (o arquivo explica como gerar cada chave).
 ### Testando à mão
 
 1. Abra http://localhost:3000 e clique em **Criar conta**.
-2. **Nova OLT**: endereço `simulator`, porta `16101`, community `public`.
-   Clique em **Testar conexão**: aparece *Huawei MA5800-X7 · 4 portas PON · 64 ONUs*.
-3. **Salvar**: a descoberta grava as 4 PONs e as 64 ONUs. Cadastre a segunda
-   (porta `16102`). O plano mostra **2 de 2 OLTs** e o botão de nova OLT trava.
-4. Em até 30 s o coletor pega o cadastro e o status vira **Coletando**.
-5. Provoque um rompimento de fibra:
+2. **Cadastrar OLT** → **Nova OLT**: endereço `simulator`, porta `16101`,
+   community `public`. **Testar conexão** mostra *Huawei MA5800-X7 · 4 portas
+   PON · 64 ONUs*. **Salvar** descobre as PONs e ONUs. Cadastre também a porta
+   `16102`; o plano mostra **2 de 2 OLTs**.
+3. Em até 30 s o coletor pega o cadastro e o status vira **Coletando**.
+4. Abra **Alarmes** (o topo mostra **Ao vivo**) e provoque um rompimento de fibra:
 
    ```bash
    curl -X POST localhost:8080/scenarios -H 'content-type: application/json' \
      -d '{"type":"fiber_cut","olt":"olt-centro","pon":"0/1/2"}'
    ```
 
-   A OLT da porta 16101 passa a mostrar 48/64 ONUs online e 17 alarmes
-   (1 `pon_fiber_cut` crítico + 16 `onu_offline` ligados a ele). A tela se
-   atualiza sozinha a cada 10 s. Para voltar ao normal: `{"type":"reset"}`.
+   Em cerca de 1 s, sem recarregar, aparece **Rompimento de fibra · Crítico**
+   marcado como *novo*, com "Ver 16 ONUs afetadas". **Reconhecer** marca quem
+   está cuidando. A **Visão geral** mostra 48/64 ONUs online na OLT.
+5. Sinal degradando aos poucos (veja na tela da ONU 5, em **ONUs**):
 
-O mesmo roteiro, automático: `./scripts/smoke.sh` (com a stack no ar; precisa
-de `curl` e `node`).
+   ```bash
+   curl -X POST localhost:8080/scenarios -H 'content-type: application/json' \
+     -d '{"type":"degrade","olt":"olt-zona-norte","pon":"0/1/0","onu":5,"rate_db_per_min":3,"target_dbm":-30}'
+   for i in $(seq 1 12); do curl -s -X POST localhost:8080/tick -H 'content-type: application/json' -d '{"minutes":1}' > /dev/null; done
+   ```
+
+6. Para voltar ao normal: `{"type":"reset"}`; os alarmes saem de "Abertos"
+   sozinhos e vão para o **Histórico** com a duração.
+
+Automático, com a stack no ar:
+
+```bash
+./scripts/smoke.sh                       # API: cadastro -> coleta -> falha -> alarme (curl + node)
+cd web && npx playwright install chromium && npx playwright test   # o mesmo no navegador
+```
 
 ## Regras de alarme
 
@@ -129,6 +147,12 @@ cd web && npm ci && npm test        # Vitest + Testing Library
 npm run dev                         # http://localhost:5173, usando a API em :8000
 ```
 
+Ponta a ponta no navegador (com `docker compose up` no ar): `cd web && npx
+playwright test`. O teste cria uma conta pela tela, cadastra a OLT, provoca um
+rompimento de fibra e exige que o alarme apareça **em até 5 s sem recarregar**
+(o polling de reserva é de 30 s, então só o tempo real passa). No CI ele roda
+depois do `smoke.sh`.
+
 ## API
 
 Documentação interativa em http://localhost:8000/api/docs. Principais rotas:
@@ -143,10 +167,21 @@ Documentação interativa em http://localhost:8000/api/docs. Principais rotas:
 | `PATCH /api/olts/{id}`, `DELETE /api/olts/{id}` | altera (refaz a descoberta se o acesso SNMP mudar) ou remove |
 | `POST /api/olts/test-connection` | testar conexão sem salvar |
 | `POST /api/olts/{id}/test-connection`, `POST /api/olts/{id}/discover` | idem para OLT salva (usa a community guardada) |
+| `GET /api/overview` | números da visão geral e alarmes abertos mais graves |
+| `GET /api/olts/{id}/pons` | PONs da OLT: ONUs online, RX médio e pior, alarmes |
+| `GET /api/onus` | ONUs com filtros: `olt_id`, `pon_id`, `status`, `rx_below`, `q` (serial), paginação |
+| `GET /api/onus/{id}/readings?hours=24` | histórico de potência (acima de ~300 pontos, média por intervalo) |
+| `GET /api/alarms` | alarmes: `status` (`open`, `cleared`, `all`...), `severity`, `olt_id`, `onu_id`, `parent_id`, `from`/`to` |
+| `POST /api/alarms/{id}/ack` | reconhecer (vale também para as ONUs de um rompimento) |
+| `GET /api/events` | avisos em tempo real (SSE) do provedor logado |
 | `GET /api/internal/collector/olts` | só para o coletor (header `X-Service-Token`) |
 
-OLT de outro provedor responde **404** (não 403), para nem confirmar que ela existe.
-Usuários `operator` só leem; alterar o cadastro exige `admin`.
+OLT, ONU ou alarme de outro provedor responde **404** (não 403), para nem
+confirmar que existe. Usuários `operator` leem e reconhecem alarmes; alterar o
+cadastro exige `admin`.
+
+Por padrão, `/api/alarms` lista só os alarmes "de cima": as ONUs de um
+rompimento de fibra ficam dentro dele (`children`) e saem com `parent_id`.
 
 ## Rodando sem Docker (Python 3.12+)
 
@@ -229,14 +264,16 @@ api/lumio_api/
   db.py               pool e transação com app.tenant_id (RLS)
   security.py         argon2, JWT e cifra da community (Fernet)
   snmp.py             testar conexão e descoberta (drivers do coletor)
-  routers/            auth, olts, internal (coletor)
+  routers/            auth, olts, overview, network (PONs/ONUs), alarms, events (SSE), internal
 web/src/
-  pages/              login/cadastro e OLTs
-  components/         formulário de OLT e componentes de tela
+  pages/              visão geral, alarmes, OLTs, ONUs, login/cadastro
+  components/         tabela de alarmes, gráfico de potência, formulário de OLT
+  live.tsx            tempo real (SSE por fetch, reconexão, recarrega as telas)
+web/e2e/              teste no navegador (Playwright)
 db/
   migrations/         esquema em SQL (tabelas, RLS, permissões, funções)
   migrate.py          aplica as migrações e cria os papéis do banco
-tests/                ponta a ponta (sprint 1), worker/ (sprint 2) e api/ (sprint 3)
+tests/                ponta a ponta (sprint 1), worker/ (sprint 2) e api/ (sprints 3 e 4)
 scripts/smoke.sh      teste de fumaça da stack no ar
 docs/plano.md         plano das sprints e decisões
 ```
@@ -244,6 +281,28 @@ docs/plano.md         plano das sprints e decisões
 ## Decisões
 
 A lista completa está em [`docs/plano.md`](docs/plano.md#decisões).
+
+### Sprint 4
+
+- **Tempo real por SSE + Redis Pub/Sub**: o worker publica no canal do
+  provedor (`lumio:events:<tenant>`) **depois do commit**; cada conexão SSE
+  assina só o canal do próprio tenant. O aviso só diz "algo mudou"; o painel
+  recarrega pelas rotas normais, que passam pelo RLS. Assim o isolamento não
+  depende do canal.
+- **SSE por `fetch`, não `EventSource`**: o token vai no cabeçalho
+  `Authorization`, não na URL (onde vazaria em logs do nginx).
+- **Polling de reserva de 30 s**: se o SSE cair, as telas seguem atualizando
+  e o topo mostra "Sem tempo real"; a reconexão espera 1, 2, 4… até 30 s.
+- **Reconhecer ≠ encerrar**: o alarme reconhecido continua aberto até a falha
+  passar; reconhecer um rompimento reconhece as ONUs dele. Operador pode reconhecer.
+- **Rompimento agrupa as ONUs**: listas e contadores mostram 1 alarme
+  crítico, não 17; as ONUs aparecem ao abrir o rompimento.
+- **Gráfico**: uma série (sem legenda), linha de referência no limite de
+  −27 dBm, tooltip e alternativa em tabela; acima de ~300 pontos, a API devolve
+  médias por intervalo. Cores de severidade são as de status, sempre com forma
+  e texto (não só cor). O painel ainda não tem modo escuro.
+- **Recharts carregado só na tela da ONU** (código dividido): a tela inicial
+  baixa 337 kB em vez de 710 kB.
 
 ### Sprint 3
 
