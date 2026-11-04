@@ -248,6 +248,40 @@ class AlarmOut(BaseModel):
     latency_ms: float | None
     acknowledged_at: datetime | None
     acknowledged_by: str | None  # nome de quem reconheceu
+    # atendimento (chamado)
+    assigned_to_id: UUID | None
+    assigned_to: str | None      # nome de quem está com o chamado
+    assigned_at: datetime | None
+    first_assigned_at: datetime | None
+    work_closed_at: datetime | None
+    work_closed_by: str | None
+    resolution_cause: str | None
+    resolution_notes: str | None
+
+
+Cause = Literal["fiber_third_party", "fiber_natural", "power", "equipment", "customer",
+                "maintenance", "configuration", "no_fault", "other"]
+
+
+class AssignIn(BaseModel):
+    user_id: UUID | None = Field(None, description="vazio: assumir para si; preenchido: transferir")
+
+
+class NoteIn(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class CloseIn(BaseModel):
+    cause: Cause
+    notes: str = Field(min_length=3, max_length=4000, description="o que foi feito")
+
+
+class TimelineItem(BaseModel):
+    at: datetime
+    kind: Literal["opened", "assigned", "transferred", "note", "closed", "reopened", "notified", "cleared"]
+    actor: str | None = None
+    target: str | None = None
+    body: str | None = None
 
 
 class AlarmPage(BaseModel):
