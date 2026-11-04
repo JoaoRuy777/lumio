@@ -151,6 +151,148 @@ async def alarms_report(db: asyncpg.Connection, p: Period) -> dict:
     }
 
 
+# ------------------------------------------------------------------ atendimento da equipe
+
+CAUSE_LABEL = {
+    "fiber_third_party": "Rompimento por terceiros (obra, veículo)",
+    "fiber_natural": "Rompimento por causa natural (árvore, chuva, animal)",
+    "power": "Falta de energia",
+    "equipment": "Falha de equipamento (OLT, splitter, ONU)",
+    "customer": "Problema no cliente",
+    "maintenance": "Manutenção programada",
+    "configuration": "Erro de configuração",
+    "no_fault": "Sem falha real (falso alarme)",
+    "other": "Outro",
+}
+SLA_ASSUME_MIN = 15          # meta usada no relatório: chamado assumido em até 15 min
+
+
+def _avg(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 1) if values else None
+
+
+def _minutes(a: datetime | None, b: datetime | None) -> float | None:
+    return (b - a).total_seconds() / 60 if a and b else None
+
+
+def _segments(events: list[asyncpg.Record], now: datetime) -> list[tuple]:
+    """(operador, segundos) de cada trecho em que o chamado ficou com alguém.
+
+    "assigned" troca o dono; "closed" para o relógio; "reopened" volta a contar
+    para o mesmo dono. Trecho ainda em andamento conta até agora.
+    """
+    out, owner, since = [], None, None
+    for e in events:
+        t = e["created_at"]
+        if e["kind"] == "assigned":
+            if owner and since:
+                out.append((owner, (t - since).total_seconds()))
+            owner, since = e["target_id"], t
+        elif e["kind"] == "closed":
+            if owner and since:
+                out.append((owner, (t - since).total_seconds()))
+            since = None
+        elif e["kind"] == "reopened" and owner:
+            since = t
+    if owner and since:
+        out.append((owner, (now - since).total_seconds()))
+    return out
+
+
+async def attendance_report(db: asyncpg.Connection, p: Period) -> dict:
+    """Atendimento dos chamados abertos no período: por operador, por causa e chamado a chamado."""
+    now = datetime.now(timezone.utc)
+    rows = await db.fetch(
+        """
+        SELECT a.id, a.kind, a.severity, a.created_at, a.cleared_at, a.first_assigned_at, a.work_closed_at,
+               a.resolution_cause, a.resolution_notes, a.assigned_to, a.work_closed_by,
+               o.name AS olt, pp.name AS pon, n.onu_index, ua.name AS owner, uc.name AS closer,
+               (SELECT e.target_id FROM alarm_events e WHERE e.alarm_id = a.id AND e.kind = 'assigned'
+                ORDER BY e.created_at LIMIT 1) AS first_owner
+        FROM alarms a JOIN olts o ON o.id = a.olt_id
+        LEFT JOIN pon_ports pp ON pp.id = a.pon_id LEFT JOIN onus n ON n.id = a.onu_id
+        LEFT JOIN users ua ON ua.id = a.assigned_to LEFT JOIN users uc ON uc.id = a.work_closed_by
+        WHERE a.parent_id IS NULL AND a.created_at >= $1 AND a.created_at < $2
+        ORDER BY a.created_at
+        """, p.start, p.end)
+    ids = [r["id"] for r in rows]
+    events: dict = {}
+    for e in await db.fetch("SELECT alarm_id, kind, actor_id, target_id, created_at FROM alarm_events "
+                            "WHERE alarm_id = ANY($1::uuid[]) ORDER BY created_at", ids):
+        events.setdefault(e["alarm_id"], []).append(e)
+    names = {u["id"]: u["name"] for u in await db.fetch("SELECT id, name FROM users")}
+
+    ops: dict = {}
+
+    def op(uid):
+        return ops.setdefault(uid, {"name": names.get(uid, "(usuário removido)"), "taken": set(), "closed": 0,
+                                    "open": 0, "tme": [], "tma": [], "seconds": 0.0, "notes": 0})
+
+    items, tme_all, tma_all, causes = [], [], [], {}
+    for r in rows:
+        evs = events.get(r["id"], [])
+        tme = _minutes(r["created_at"], r["first_assigned_at"])
+        tma = _minutes(r["first_assigned_at"], r["work_closed_at"])
+        if tme is not None:
+            tme_all.append(tme)
+            if r["first_owner"]:
+                op(r["first_owner"])["tme"].append(tme)
+        if tma is not None:
+            tma_all.append(tma)
+            if r["work_closed_by"]:
+                op(r["work_closed_by"])["closed"] += 1
+                op(r["work_closed_by"])["tma"].append(tma)
+        if r["assigned_to"] and r["work_closed_at"] is None:
+            op(r["assigned_to"])["open"] += 1
+        for e in evs:
+            if e["kind"] == "assigned" and e["target_id"]:
+                op(e["target_id"])["taken"].add(r["id"])
+            elif e["kind"] == "note" and e["actor_id"]:
+                op(e["actor_id"])["notes"] += 1
+        for uid, secs in _segments(evs, now):
+            op(uid)["seconds"] += secs
+        if r["resolution_cause"]:
+            c = causes.setdefault(r["resolution_cause"], {"count": 0, "tma": []})
+            c["count"] += 1
+            if tma is not None:
+                c["tma"].append(tma)
+        items.append({
+            "opened_at": r["created_at"].isoformat(), "kind": r["kind"], "severity": r["severity"],
+            "olt": r["olt"], "pon": r["pon"], "onu": r["onu_index"],
+            "network_cleared_at": r["cleared_at"] and r["cleared_at"].isoformat(),
+            "first_assigned_at": r["first_assigned_at"] and r["first_assigned_at"].isoformat(),
+            "closed_at": r["work_closed_at"] and r["work_closed_at"].isoformat(),
+            "owner": r["owner"], "closed_by": r["closer"],
+            "tme_min": round(tme, 1) if tme is not None else None,
+            "tma_min": round(tma, 1) if tma is not None else None,
+            "cause": r["resolution_cause"], "notes": r["resolution_notes"],
+        })
+
+    assumed = sum(1 for i in items if i["first_assigned_at"])
+    closed = sum(1 for i in items if i["closed_at"])
+    within_sla = sum(1 for t in tme_all if t <= SLA_ASSUME_MIN)
+    operators = sorted((
+        {"name": o["name"], "taken": len(o["taken"]), "closed": o["closed"], "open": o["open"],
+         "tme_min": _avg(o["tme"]), "tma_min": _avg(o["tma"]),
+         "time_in_attendance_min": round(o["seconds"] / 60, 1), "notes": o["notes"]}
+        for o in ops.values()), key=lambda o: (-o["closed"], -o["taken"], o["name"]))
+    return {
+        "period": {"from": p.start.isoformat(), "to": p.end.isoformat()},
+        "summary": {
+            "tickets": len(items), "assumed": assumed, "unattended": len(items) - assumed, "closed": closed,
+            "in_progress": assumed - closed, "tme_min": _avg(tme_all), "tma_min": _avg(tma_all),
+            "tma_max_min": round(max(tma_all), 1) if tma_all else None,
+            "sla_assume_min": SLA_ASSUME_MIN,
+            "assumed_within_sla_pct": round(100 * within_sla / len(tme_all), 1) if tme_all else None,
+        },
+        "operators": operators,
+        "causes": sorted(({"cause": k, "label": CAUSE_LABEL.get(k, k), "count": v["count"],
+                           "pct": round(100 * v["count"] / closed, 1) if closed else 0.0, "tma_min": _avg(v["tma"])}
+                          for k, v in causes.items()), key=lambda c: -c["count"]),
+        "items": items,
+    }
+
+
 # ------------------------------------------------------------------ formatos
 
 def _num(v, digits: int = 1) -> str:
@@ -190,6 +332,62 @@ def alarms_csv(rep: dict) -> bytes:
           i["serial"] or "", i["affected_onus"] or "", i["occurrences"], i["source"], i["acknowledged_by"] or ""]
          for i in rep["items"]],
     )
+
+
+def human_minutes(minutes: float | None) -> str:
+    """"45 s", "12 min", "3 h 05 min" (para PDF e tela)."""
+    if minutes is None:
+        return "-"
+    s = round(minutes * 60)
+    if s < 60:
+        return f"{s} s"
+    m = s // 60
+    return f"{m} min" if m < 60 else f"{m // 60} h {m % 60:02d} min"
+
+
+def attendance_csv(rep: dict) -> bytes:
+    """Chamado a chamado (o resumo por operador está no PDF e na tela)."""
+    return _csv(
+        ["Aberto em", "Alarme", "Severidade", "OLT", "PON", "ONU", "Assumido em", "Encerrado em", "Com", "Encerrado por",
+         "TME (min)", "TMA (min)", "Causa", "O que foi feito", "Normalizou na rede em"],
+        [[_dt(i["opened_at"]), KIND_LABEL.get(i["kind"], i["kind"]), SEVERITY_LABEL[i["severity"]], i["olt"],
+          i["pon"] or "", "" if i["onu"] is None else i["onu"], _dt(i["first_assigned_at"]), _dt(i["closed_at"]),
+          i["owner"] or "", i["closed_by"] or "", _num(i["tme_min"]), _num(i["tma_min"]),
+          CAUSE_LABEL.get(i["cause"], i["cause"] or ""), (i["notes"] or "").replace("\n", " "),
+          _dt(i["network_cleared_at"])] for i in rep["items"]],
+    )
+
+
+def attendance_pdf(rep: dict, tenant: str, p: Period) -> bytes:
+    s = rep["summary"]
+    sla = (f"{_num(s['assumed_within_sla_pct'])} % assumidos em até {s['sla_assume_min']} min"
+           if s["assumed_within_sla_pct"] is not None else "")
+    longest = f" (maior: {human_minutes(s['tma_max_min'])})" if s["tma_max_min"] is not None else ""
+    summary = (f"<b>{s['tickets']} chamados</b> no período: {s['assumed']} assumidos, {s['closed']} encerrados, "
+               f"{s['in_progress']} em andamento e {s['unattended']} sem atendimento. "
+               f"<b>TME</b> (até assumir): {human_minutes(s['tme_min'])}. "
+               f"<b>TMA</b> (assumido até encerrado): {human_minutes(s['tma_min'])}{longest}. {sla}")
+    return _pdf("Relatório de atendimento da equipe", tenant, p, [
+        [summary],
+        "Por operador",
+        (["Operador", "Assumidos", "Encerrados", "Em andamento", "TME", "TMA", "Tempo em atendimento", "Anotações"],
+         [[o["name"], o["taken"], o["closed"], o["open"], human_minutes(o["tme_min"]), human_minutes(o["tma_min"]),
+           human_minutes(o["time_in_attendance_min"]), o["notes"]] for o in rep["operators"]]),
+        "Causas dos chamados encerrados",
+        (["Causa", "Chamados", "%", "TMA"],
+         [[c["label"], c["count"], _num(c["pct"]), human_minutes(c["tma_min"])] for c in rep["causes"]]),
+        "Chamados",
+        (["Aberto em", "Alarme", "Local", "Com", "TME", "TMA", "Causa"],
+         [[_dt(i["opened_at"]), KIND_LABEL.get(i["kind"], i["kind"]),
+           " · ".join(x for x in (i["olt"], i["pon"] and f"PON {i['pon']}", i["onu"] is not None and f"ONU {i['onu']}") if x),
+           i["closed_by"] or i["owner"] or "sem atendimento", human_minutes(i["tme_min"]),
+           human_minutes(i["tma_min"]) if i["closed_at"] else "em andamento" if i["first_assigned_at"] else "-",
+           CAUSE_LABEL.get(i["cause"], "") if i["cause"] else ""] for i in rep["items"]]),
+        ["TME (tempo médio de espera): da abertura do alarme até alguém assumir o chamado. TMA (tempo médio de "
+         "atendimento): de quando foi assumido até o operador encerrar, pela média dos chamados encerrados. "
+         "Tempo em atendimento: soma dos trechos em que o chamado ficou com cada operador (transferências "
+         "dividem o tempo; chamado encerrado não conta)."],
+    ])
 
 
 def _pdf(title: str, tenant: str, p: Period, blocks: list) -> bytes:

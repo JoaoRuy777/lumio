@@ -51,6 +51,22 @@ async def availability(user: User, db: TenantDb,
     return rep
 
 
+@router.get("/attendance",
+            summary="Atendimento da equipe: chamados por operador, TME, TMA e causas (padrão: últimos 7 dias)")
+async def attendance(user: User, db: TenantDb,
+                     since: Annotated[datetime | None, Query(alias="from")] = None,
+                     until: Annotated[datetime | None, Query(alias="to")] = None,
+                     format: Format = "json"):
+    p = period(since, until)
+    rep = await reports.attendance_report(db, p)
+    if format == "csv":
+        return download(reports.attendance_csv(rep), "text/csv; charset=utf-8", f"lumio-atendimento-{p.slug()}.csv")
+    if format == "pdf":
+        return download(reports.attendance_pdf(rep, await tenant_name(db), p), "application/pdf",
+                        f"lumio-atendimento-{p.slug()}.pdf")
+    return rep
+
+
 @router.get("/alarms", summary="Alarmes do período, com resumo e MTTR (padrão: últimos 7 dias)")
 async def alarms(user: User, db: TenantDb,
                  since: Annotated[datetime | None, Query(alias="from")] = None,
