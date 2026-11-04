@@ -146,6 +146,27 @@ def environment(out: Path) -> str:
     return f"- CPU: {cpu}\n" + "\n".join(f"- {l}" for l in env.splitlines() if l)
 
 
+def before_after(figs: Path, levels: list[dict]) -> str:
+    """Compara com uma medição guardada antes de uma otimização (antes-nivel-N.json)."""
+    rows = []
+    for path in sorted(figs.glob("antes-nivel-*.json")):
+        old = json.loads(path.read_text(encoding="utf-8"))
+        new = next((l for l in levels if l["olts"] == old["olts"]), None)
+        if new is None:
+            continue
+        for label, key in (("rajada de estado (ONUs/s)", "burst"), ("rajada de potência (ONUs/s)", "burst_optical")):
+            a, b = old[key]["onus_per_s"], new[key]["onus_per_s"]
+            rows.append([n(old["onus"]), label, n(a), n(b), f"{b / a:.1f}×".replace(".", ",")])
+        a, b = old["alarms"]["latency_total_ms"]["p50"], new["alarms"]["latency_total_ms"]["p50"]
+        rows.append([n(old["onus"]), "latência de alarme p50 (ms)", n(a, 1), n(b, 1), "—"])
+    if not rows:
+        return ""
+    return "## Antes e depois da otimização do worker\n\n" + \
+        "Mesmo nível, medido antes e depois de o worker passar a gravar o estado e a potência\n" + \
+        "das ONUs em lote (uma consulta por OLT em vez de uma por ONU).\n\n" + \
+        table(["ONUs", "medida", "antes", "depois", "ganho"], rows) + "\n"
+
+
 def main(out: Path, docs: Path) -> None:
     levels, samples = load(out)
     if not levels:
@@ -202,7 +223,8 @@ níveis de {", ".join(str(l["olts"]) for l in levels)} OLTs ({", ".join(n(x) for
    (`alarms.created_at`); todos os contêineres usam o relógio do host;
 4. CPU e memória de cada contêiner são amostradas com `docker stats` durante
    todo o teste; as tabelas usam só as amostras de dentro da janela;
-5. **rajada**: {levels[0]["burst"]["records"]} registros de estado (128 ONUs cada) são injetados de
+5. **rajada**: {levels[0]["burst"]["records"]} registros de estado (128 ONUs cada) e depois o mesmo número
+   de leituras de potência são injetados de
    uma vez na fila do Redis, e mede-se o tempo até o worker zerá-la. Isso dá a
    vazão máxima do worker, independente do simulador.
 
@@ -232,10 +254,10 @@ worker na rajada.
 
 ![Vazão do worker](resultados/vazao.png)
 
-{table(["ONUs", "coletas medidas", "coleta p50 (ms)", "coleta p95 (ms)", "ONUs/s por OLT (p50)", "rajada (s)", "worker (registros/s)", "worker (ONUs/s)"],
+{table(["ONUs", "coletas medidas", "coleta p50 (ms)", "coleta p95 (ms)", "ONUs/s por OLT (p50)", "rajada (s)", "worker (registros/s)", "worker (ONUs/s)", "worker, potência (ONUs/s)"],
        [[n(l["onus"]), l["polling"]["status_polls"], n(l["polling"]["took_ms"]["p50"]), n(l["polling"]["took_ms"]["p95"]),
          n(l["polling"]["onus_per_s_per_olt"]["p50"]), n(l["burst"]["seconds"], 2), n(l["burst"]["records_per_s"], 1),
-         n(l["burst"]["onus_per_s"])] for l in levels])}
+         n(l["burst"]["onus_per_s"]), n(l["burst_optical"]["onus_per_s"])] for l in levels])}
 
 Para comparação: no maior nível, a coleta normal gera {n(levels[-1]["onus"] / 60)} estados de ONU por
 segundo (todas as ONUs a cada 60 s).
@@ -263,6 +285,7 @@ Média dentro da janela de medição; CPU em % de um núcleo (100 % = um núcleo
 
 "Até todas em coleta" inclui a espera de até 30 s do coletor reler o cadastro.
 
+{before_after(figs, levels)}
 {analysis}
 """
     (docs / "resultados.md").write_text(md, encoding="utf-8")
