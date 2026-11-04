@@ -1,0 +1,55 @@
+import type { AlarmKind, Severity } from "./api";
+
+export const RX_LIMIT_DBM = -27; // mesmo limite do worker
+
+export const kindLabel: Record<AlarmKind, string> = {
+  pon_fiber_cut: "Rompimento de fibra",
+  onu_offline: "ONU offline",
+  onu_rx_low: "Sinal baixo",
+  olt_unreachable: "OLT inacessível",
+  olt_cpu_high: "CPU alta",
+};
+
+export const severityLabel: Record<Severity, string> = {
+  critical: "Crítico",
+  major: "Grave",
+  minor: "Menor",
+  warning: "Aviso",
+};
+
+const nf = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+export function dbm(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : `${nf.format(value)} dBm`;
+}
+
+export function dateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "medium" });
+}
+
+/** "agora", "há 5 min", "há 2 h", "há 3 dias" */
+export function ago(iso: string | null | undefined, now: number = Date.now()): string {
+  if (!iso) return "—";
+  const s = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  if (s < 60) return "agora";
+  if (s < 3600) return `há ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `há ${Math.floor(s / 3600)} h`;
+  return `há ${Math.floor(s / 86400)} dias`;
+}
+
+/** Duração legível: "45 s", "12 min", "3 h 05 min", "2 d 4 h" */
+export function duration(fromIso: string, toIso: string | null = null, now: number = Date.now()): string {
+  const s = Math.max(0, Math.round(((toIso ? new Date(toIso).getTime() : now) - new Date(fromIso).getTime()) / 1000));
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h ${String(m % 60).padStart(2, "0")} min`;
+  return `${Math.floor(h / 24)} d ${h % 24} h`;
+}
+
+/** Onde está a falha: "OLT · PON 0/1/2 · ONU 5" */
+export function location(a: { olt_name: string; pon: string | null; onu_index: number | null }): string {
+  return [a.olt_name, a.pon && `PON ${a.pon}`, a.onu_index !== null && `ONU ${a.onu_index}`].filter(Boolean).join(" · ");
+}

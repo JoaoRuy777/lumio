@@ -98,3 +98,10 @@ Toda tabela, exceto `tenants`, tem `tenant_id` e política RLS
 14. Token JWT no `localStorage`, painel e API no mesmo endereço via nginx (sem
     CORS); cookie `httpOnly` fica para depois do MVP (sprint 3).
 15. Sem react-router na sprint 3 (duas telas); entra na sprint 4.
+16. Tempo real por SSE + Redis Pub/Sub por tenant, publicado depois do commit;
+    o aviso só manda recarregar, os dados passam pelo RLS (sprint 4).
+17. SSE lido por `fetch` (token no cabeçalho), com polling de 30 s de reserva
+    (sprint 4).
+18. Alarme reconhecido continua aberto até a falha passar (sprint 4).
+19. Teste de ponta a ponta no navegador com Playwright, no CI depois do smoke
+    (sprint 4).
