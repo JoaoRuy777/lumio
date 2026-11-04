@@ -111,3 +111,9 @@ Toda tabela, exceto `tenants`, tem `tenant_id` e política RLS
     CSV no padrão do Excel brasileiro; PDF com reportlab (sprint 5).
 22. Webhook assinado com HMAC-SHA256 e bloqueio de destinos internos (SSRF)
     (sprint 5).
+23. Teste de carga com o simulador em projeto compose descartável; latência
+    medida do pedido de falha ao alarme gravado (sprint 6).
+24. Worker grava estado e potência em lote por OLT (`UPDATE ... FROM unnest`)
+    depois de o teste de carga mostrar uma consulta por ONU (sprint 6).
+25. Produção com Caddy (HTTPS automático), segredos obrigatórios no `.env` e
+    OLTs reais alcançadas por WireGuard (sprint 6).
