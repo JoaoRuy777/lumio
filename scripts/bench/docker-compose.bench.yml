@@ -1,0 +1,11 @@
+# Sobreposição para o teste de carga (usada por scripts/bench/bench.sh):
+# o simulador sobe com a rede gerada em scripts/bench/out/rede.yaml.
+services:
+  simulator:
+    command: ["python", "-m", "lumio_sim", "--config", "/bench/rede.yaml", "--trap-target", "collector:1162"]
+    volumes:
+      - ./scripts/bench/out:/bench:ro
+  # o teste de carga roda dentro da rede do compose, com a mesma imagem dos testes
+  tests:
+    environment:
+      LUMIO_BENCH_DB: postgresql://${POSTGRES_USER:-lumio}:${POSTGRES_PASSWORD:-lumio-dev}@postgres:5432/${POSTGRES_DB:-lumio}

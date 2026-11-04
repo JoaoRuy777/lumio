@@ -4,9 +4,10 @@ Monitoramento de redes GPON (OLTs e ONUs) para provedores regionais. Este
 repositório é o MVP descrito no TCC *Lumio: concepção e desenvolvimento de
 uma startup de monitoramento automatizado de OLTs* (UNIMAR, 2026).
 
-Estado atual: **sprint 5 (notificações e relatórios)** de seis. Próxima:
-desempenho e resultados (6). O plano completo e as decisões estão em
-[`docs/plano.md`](docs/plano.md).
+Estado atual: **MVP completo (sprints 1 a 6)**. O plano e as decisões estão em
+[`docs/plano.md`](docs/plano.md), os testes de desempenho em
+[`docs/resultados.md`](docs/resultados.md) e o passo a passo para colocar no
+ar em [`docs/deploy.md`](docs/deploy.md).
 
 ```
                      painel React ◀─SSE─ API FastAPI ──▶ Postgres (RLS por provedor)
@@ -52,7 +53,13 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
   (canais, mensagem de teste, histórico de entregas).
 - **Banco** (`db/`): Postgres 17 com Row-Level Security por tenant; migrações
   em SQL puro aplicadas pelo serviço `migrate`.
-- **Testes**: 121 no backend (`tests/`), 27 no painel (`web/src/__tests__`) e
+- **Desempenho** (`scripts/bench/`): teste de carga com o simulador em vários
+  tamanhos de rede, medindo latência de alarme, vazão do worker, duração da
+  coleta, CPU e memória; gera [`docs/resultados.md`](docs/resultados.md).
+- **Produção** (`docker-compose.prod.yml`, `deploy/`): HTTPS automático
+  (Caddy), só as portas 80/443 expostas, segredos obrigatórios no `.env`,
+  backup diário do banco.
+- **Testes**: 124 no backend (`tests/`), 27 no painel (`web/src/__tests__`) e
   1 de ponta a ponta no navegador (`web/e2e`, Playwright).
 
 ## Rodando com Docker
@@ -170,6 +177,28 @@ playwright test`. O teste cria uma conta pela tela, cadastra a OLT, provoca um
 rompimento de fibra e exige que o alarme apareça **em até 5 s sem recarregar**
 (o polling de reserva é de 30 s, então só o tempo real passa). No CI ele roda
 depois do `smoke.sh`.
+
+## Desempenho
+
+```bash
+docker compose down                 # o teste usa as mesmas portas
+./scripts/bench/bench.sh            # uns 20 min; LEVELS="2 10" para um teste curto
+```
+
+Roda num projeto compose separado (`lumio-bench`), com banco próprio apagado
+no fim, e gera `docs/resultados.md` com a metodologia, tabelas e gráficos.
+
+## Colocando no ar
+
+Resumo (detalhes em [`docs/deploy.md`](docs/deploy.md)): uma VPS Linux com
+Docker, um domínio apontando para ela e uma conta de SMTP.
+
+```bash
+git clone https://github.com/JoaoRuy777/lumio.git /opt/lumio && cd /opt/lumio
+./deploy/gen-env.sh lumio.seudominio.com.br voce@seudominio.com.br   # gera o .env
+nano .env                                                             # SMTP_*
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile demo up -d --build
+```
 
 ## API
 
@@ -296,14 +325,36 @@ web/e2e/              teste no navegador (Playwright)
 db/
   migrations/         esquema em SQL (tabelas, RLS, permissões, funções)
   migrate.py          aplica as migrações e cria os papéis do banco
-tests/                ponta a ponta (sprint 1), worker/ (sprint 2) e api/ (sprints 3 e 4)
+tests/                ponta a ponta (sprint 1), worker/ (sprint 2) e api/ (sprints 3 a 5)
 scripts/smoke.sh      teste de fumaça da stack no ar
+scripts/bench/        teste de carga e gerador do relatório de resultados
+deploy/               Caddyfile, gerador do .env e backup (produção)
+docker-compose.prod.yml  ajustes de produção (HTTPS, sem portas internas, restart)
 docs/plano.md         plano das sprints e decisões
+docs/resultados.md    resultados dos testes de desempenho
+docs/deploy.md        como colocar no ar
 ```
 
 ## Decisões
 
 A lista completa está em [`docs/plano.md`](docs/plano.md#decisões).
+
+### Sprint 6
+
+- **Teste de carga com o próprio simulador**, num projeto compose separado e
+  descartável: mede do pedido de falha ao alarme gravado (relógio do host,
+  comum a todos os contêineres), mais uma rajada direto na fila para medir o
+  worker sozinho. Metodologia completa em `docs/resultados.md`.
+- **Worker em lote**: o teste mostrou que o worker fazia uma consulta por ONU.
+  Agora grava estado e potência de uma OLT inteira com uma consulta
+  (`UPDATE ... FROM unnest`); o comparativo antes/depois está nos resultados.
+- **Produção com Caddy**: certificado HTTPS automático, sem configurar nginx
+  nem certbot; banco, Redis e API ficam só na rede interna do Docker.
+- **Segredos obrigatórios em produção**: o `docker-compose.prod.yml` não sobe
+  se faltar alguma senha no `.env` (nada de valor padrão de desenvolvimento);
+  `deploy/gen-env.sh` gera todas aleatórias.
+- **OLTs reais por VPN (WireGuard)**: o SNMP das OLTs nunca fica exposto na
+  internet.
 
 ### Sprint 5
 

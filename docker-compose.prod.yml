@@ -1,0 +1,98 @@
+# Produção: use JUNTO com o docker-compose.yml.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# O que muda em relação ao desenvolvimento:
+# - HTTPS automático com Caddy (certificado Let's Encrypt) na frente do painel;
+# - nada além das portas 80/443 fica exposto (banco, Redis e API só na rede interna);
+# - senhas e chaves OBRIGATÓRIAS no .env (sem os valores padrão de desenvolvimento);
+# - webhooks não podem apontar para a rede interna (proteção SSRF);
+# - todos os serviços reiniciam sozinhos;
+# - simulador e Mailpit só sobem com --profile demo (apresentação do TCC).
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *restart
+    ports: !reset []
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+
+  redis:
+    <<: *restart
+    ports: !reset []
+
+  migrate:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lumio}:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lumio}
+      LUMIO_APP_DB_PASSWORD: ${LUMIO_APP_DB_PASSWORD:?defina LUMIO_APP_DB_PASSWORD no .env}
+      LUMIO_SYSTEM_DB_PASSWORD: ${LUMIO_SYSTEM_DB_PASSWORD:?defina LUMIO_SYSTEM_DB_PASSWORD no .env}
+
+  api:
+    <<: *restart
+    ports: !reset []
+    environment:
+      LUMIO_SERVICE_TOKEN: ${LUMIO_SERVICE_TOKEN:?defina LUMIO_SERVICE_TOKEN no .env}
+      DATABASE_URL: postgresql://lumio_app:${LUMIO_APP_DB_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-lumio}
+      LUMIO_JWT_SECRET: ${LUMIO_JWT_SECRET:?defina LUMIO_JWT_SECRET no .env}
+      LUMIO_SECRET_KEY: ${LUMIO_SECRET_KEY:?defina LUMIO_SECRET_KEY no .env}
+
+  web:
+    <<: *restart
+    ports: !reset []
+
+  collector:
+    <<: *restart
+    environment:
+      LUMIO_SERVICE_TOKEN: ${LUMIO_SERVICE_TOKEN:?}
+    # sem o simulador (perfil demo), o coletor depende só da fila e da API
+    depends_on: !override
+      redis: { condition: service_healthy }
+      api: { condition: service_healthy }
+
+  worker:
+    <<: *restart
+    environment:
+      DATABASE_URL: postgresql://lumio_system:${LUMIO_SYSTEM_DB_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-lumio}
+
+  notifier:
+    <<: *restart
+    environment:
+      DATABASE_URL: postgresql://lumio_system:${LUMIO_SYSTEM_DB_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-lumio}
+      LUMIO_SECRET_KEY: ${LUMIO_SECRET_KEY:?}
+      LUMIO_PUBLIC_URL: https://${LUMIO_DOMAIN:?defina LUMIO_DOMAIN no .env}
+      SMTP_HOST: ${SMTP_HOST:?defina o SMTP no .env (veja docs/deploy.md)}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      LUMIO_WEBHOOK_ALLOW_PRIVATE: "false"
+
+  # Demonstração (TCC): OLTs simuladas e o Mailpit, só com --profile demo
+  simulator:
+    <<: *restart
+    profiles: [demo]
+    ports: !reset []
+  mailpit:
+    profiles: [demo]
+    ports: !reset []
+
+  caddy:
+    image: caddy:2.10-alpine
+    <<: *restart
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      LUMIO_DOMAIN: ${LUMIO_DOMAIN:?defina LUMIO_DOMAIN no .env}
+      ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL no .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:
