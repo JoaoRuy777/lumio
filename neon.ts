@@ -1,8 +1,8 @@
 import { defineConfig } from "@neon/config/v1";
 
 export default defineConfig({
-  // Declare your Neon services here
-  auth: true,
+  // Só o Postgres: a Lumio tem login próprio (JWT + argon2, isolamento por RLS),
+  // então o Neon Auth não é usado.
   // Branch policy: per-branch tuning
   branch: (branch) => {
     if (branch.isDefault) {
