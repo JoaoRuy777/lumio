@@ -63,6 +63,32 @@ async def main() -> None:
     await consumer.run()
 
 
+async def notify_main() -> None:
+    """python -m lumio_worker notify: envia as notificações da fila."""
+    from .notify import Notifier, SmtpConfig
+
+    pool = await connect_pool(os.environ["DATABASE_URL"])
+    smtp = SmtpConfig(
+        host=os.environ.get("SMTP_HOST") or None,
+        port=int(os.environ.get("SMTP_PORT", "587")),
+        username=os.environ.get("SMTP_USER") or None,
+        password=os.environ.get("SMTP_PASSWORD") or None,
+        sender=os.environ.get("SMTP_FROM", "Lumio <alertas@lumio.local>"),
+        security=os.environ.get("SMTP_SECURITY", "starttls"),
+    )
+    if not smtp.configured:
+        log.warning("SMTP_HOST não definido: canais de e-mail vão falhar até configurar")
+    notifier = Notifier(
+        pool, os.environ["LUMIO_SECRET_KEY"], smtp,
+        public_url=os.environ.get("LUMIO_PUBLIC_URL", ""),
+        allow_private=os.environ.get("LUMIO_WEBHOOK_ALLOW_PRIVATE", "").lower() in ("1", "true", "yes"),
+    )
+    log.info("notificador no ar (SMTP %s)", smtp.host or "não configurado")
+    await notifier.run()
+
+
 if __name__ == "__main__":
+    import sys
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    asyncio.run(main())
+    asyncio.run(notify_main() if sys.argv[1:] == ["notify"] else main())

@@ -82,3 +82,14 @@ def is_fiber_cut(total: int, offline: int, recent_offline: int) -> bool:
 
 def fiber_cut_recovered(total: int, online: int) -> bool:
     return total > 0 and online / total >= FIBER_CUT_CLEAR_RATIO
+
+# Notificações: "ONU offline" espera um pouco antes de sair, porque pode virar
+# parte de um rompimento de fibra (que manda um aviso só, não 16)
+NOTIFY_GRACE_S = {"onu_offline": 15.0}
+
+SEVERITY_RANK = {"critical": 0, "major": 1, "minor": 2, "warning": 3}
+
+
+def channel_accepts(channel_min_severity: str, alarm_severity: str) -> bool:
+    """Canal com mínimo "major" recebe critical e major."""
+    return SEVERITY_RANK[alarm_severity] <= SEVERITY_RANK[channel_min_severity]
