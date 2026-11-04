@@ -48,7 +48,7 @@ export function OnuPage() {
         </p>
       </div>
 
-      <dl className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-4">
+      <dl className="grid gap-4 rounded-xl border border-slate-200 bg-surface p-4 shadow-sm sm:grid-cols-4">
         <div>
           <dt className="text-sm text-slate-500">Situação</dt>
           <dd className="mt-1">
@@ -79,7 +79,7 @@ export function OnuPage() {
               <button
                 key={r.hours}
                 aria-pressed={hours === r.hours}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium ${hours === r.hours ? "bg-slate-800 text-white" : "text-slate-600"}`}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium ${hours === r.hours ? "bg-brand-600 text-white" : "text-slate-600"}`}
                 onClick={() => setHours(r.hours)}
               >
                 {r.label}

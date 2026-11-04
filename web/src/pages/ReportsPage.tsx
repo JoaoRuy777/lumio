@@ -65,7 +65,7 @@ export function ReportsPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Relatórios</h1>
 
       <div className="flex flex-wrap items-end gap-4">
-        <div role="group" aria-label="Período" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+        <div role="group" aria-label="Período" className="inline-flex rounded-lg border border-slate-200 bg-surface p-0.5">
           {presets.map(([key, label]) => (
             <button
               key={key}

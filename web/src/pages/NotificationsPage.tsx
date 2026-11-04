@@ -179,7 +179,7 @@ export function NotificationsPage({ me }: { me: Me }) {
           <p className="mt-1">
             Cada POST traz o cabeçalho <code>X-Lumio-Signature: sha256=…</code> (HMAC-SHA256 do corpo com este segredo).
           </p>
-          <code className="mt-2 block rounded bg-white px-2 py-1 font-mono text-xs break-all select-all">{secret.value}</code>
+          <code className="mt-2 block rounded bg-surface px-2 py-1 font-mono text-xs break-all select-all">{secret.value}</code>
           <button className="mt-2 text-xs underline" onClick={() => setSecret(null)}>
             Já copiei
           </button>

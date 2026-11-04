@@ -26,14 +26,14 @@ describe("usuários", () => {
     });
     renderWithQuery(<UsersPage me={me} />);
     await userEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
-    await userEvent.type(screen.getByLabelText("Nome"), "Prof. Avaliador");
-    await userEvent.type(screen.getByLabelText("E-mail"), "avaliador@unimar.br");
-    await userEvent.type(screen.getByLabelText("Senha inicial"), "senha-banca-2026");
+    await userEvent.type(screen.getByLabelText("Nome"), "Maria Souza");
+    await userEvent.type(screen.getByLabelText("E-mail"), "maria@provedor.com.br");
+    await userEvent.type(screen.getByLabelText("Senha inicial"), "senha-forte-2026");
     await userEvent.click(screen.getByRole("button", { name: "Criar usuário" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("avaliador@unimar.br");
+    expect(await screen.findByRole("status")).toHaveTextContent("maria@provedor.com.br");
     expect(calls.find((c) => c.key === "POST /users")!.body).toEqual({
-      name: "Prof. Avaliador", email: "avaliador@unimar.br", password: "senha-banca-2026", role: "admin",
+      name: "Maria Souza", email: "maria@provedor.com.br", password: "senha-forte-2026", role: "admin",
     });
   });
 

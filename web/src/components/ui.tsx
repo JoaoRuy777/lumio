@@ -3,7 +3,7 @@ import type { AlarmStatus, CollectionStatus, Severity } from "../api";
 import { severityLabel } from "../format";
 
 export const inputClass =
-  "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-xs outline-none " +
+  "w-full rounded-md border border-slate-300 bg-surface px-3 py-2 text-sm shadow-xs outline-none " +
   "focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:bg-slate-100";
 
 // O rótulo aponta para o campo (htmlFor) e a dica fica ligada por aria-describedby:
@@ -32,9 +32,9 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 type Variant = "primary" | "secondary" | "danger";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-500/50",
-  secondary: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:text-slate-400",
-  danger: "border border-red-200 bg-white text-red-700 hover:bg-red-50",
+  primary: "bg-brand-600 text-white hover:bg-brand-800 disabled:bg-brand-500/50",
+  secondary: "border border-slate-300 bg-surface text-slate-700 hover:bg-slate-50 disabled:text-slate-400",
+  danger: "border border-red-200 bg-surface text-red-700 hover:bg-red-50",
 };
 
 export function Button({
@@ -134,7 +134,7 @@ export function StatTile({ label, value, detail, tone = "neutral", children }: {
   children?: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label={label}>
+    <section className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm" aria-label={label}>
       <h2 className="text-sm text-slate-500">{label}</h2>
       <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${tone === "bad" ? "text-red-700" : "text-slate-900"}`}>
         {value}
@@ -168,7 +168,7 @@ export function Pager({ total, limit, offset, onChange }: { total: number; limit
 
 export function Card({ title, actions, children }: { title?: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-surface shadow-sm">
       {(title || actions) && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
           {title && <h2 className="font-medium">{title}</h2>}
