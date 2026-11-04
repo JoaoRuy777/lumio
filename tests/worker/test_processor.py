@@ -146,3 +146,30 @@ async def test_rls_isola_os_tenants(processor, pool):
         assert await conn.fetchval("SELECT count(*) FROM olts") == 0
         await conn.execute("SELECT set_config('app.tenant_id', $1, true)", str(processor.tenant_id))
         assert await conn.fetchval("SELECT count(*) FROM alarms") == 1
+
+
+async def test_rompimento_detectado_so_pelo_polling(processor, pool):
+    """Sprint 6 (UPDATE em lote): as 8 ONUs caem no mesmo registro de estado."""
+    await processor.handle(rec("onu_status", onus=onus("0/1/0") + onus("0/1/1")))
+    estado = onus("0/1/0") + onus("0/1/1", online=False)
+    await processor.handle(rec("onu_status", onus=estado))
+    [cut] = await alarms(pool, kind="pon_fiber_cut")
+    assert cut["source"] == "poll"
+    filhos = await alarms(pool, kind="onu_offline")
+    assert len(filhos) == 8 and all(f["parent_id"] == cut["id"] for f in filhos)
+    # mesmo registro de novo: nada muda (sem transição)
+    await processor.handle(rec("onu_status", onus=estado))
+    assert len(await alarms(pool)) == 9
+    assert await pool.fetchval("SELECT count(DISTINCT serial) FROM onus") == 16
+
+
+async def test_varios_sinais_normalizam_na_mesma_leitura(processor, pool):
+    def optical(rx):
+        return rec("onu_optical", onus=[{"pon": "0/1/0", "onu": i, "rx_dbm": rx, "tx_dbm": 2.2} for i in range(5)])
+
+    await processor.handle(optical(-28.0))
+    assert len(await alarms(pool, kind="onu_rx_low", status="active")) == 5
+    await processor.handle(optical(-22.0))
+    assert len(await alarms(pool, kind="onu_rx_low", status="cleared")) == 5
+    assert await pool.fetchval("SELECT count(*) FROM optical_readings") == 10
+    assert await pool.fetchval("SELECT count(*) FROM onus WHERE rx_dbm = -22.0") == 5

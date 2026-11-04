@@ -283,31 +283,80 @@ class Processor:
             "UPDATE olts SET last_poll_at = $2, reachable = true, last_error = NULL WHERE id = $1",
             ctx.olt_id, ctx.ts,
         )
+        # Sprint 6: um UPDATE para a OLT inteira (antes era um por ONU). Devolve
+        # só as ONUs que mudaram de estado, que são as únicas que podem alarmar.
+        ids, onlines, serials, pons = [], [], [], {}
         for o in r["onus"]:
-            pon_id, onu_id = await self._onu(ctx, o["pon"], o["onu"])
-            if o.get("serial"):
-                await ctx.conn.execute("UPDATE onus SET serial = $2 WHERE id = $1 AND serial IS DISTINCT FROM $2",
-                                       onu_id, o["serial"])
-            prev = await self._set_onu_online(ctx, onu_id, o["online"])
-            if prev is not False and not o["online"]:
+            pon_id, onu_id = await self._onu(ctx, o["pon"], o["onu"])        # em cache depois da 1ª vez
+            ids.append(onu_id)
+            onlines.append(o["online"])
+            serials.append(o.get("serial"))
+            pons[onu_id] = (pon_id, o.get("serial"))
+        changed = await ctx.conn.fetch(
+            """
+            WITH new AS (SELECT * FROM unnest($1::uuid[], $2::bool[], $3::text[]) AS t(id, online, serial)),
+                 prev AS (SELECT n.id, n.online FROM onus n JOIN new USING (id))
+            UPDATE onus n SET online = new.online, last_seen_at = $4,
+                   serial = coalesce(new.serial, n.serial),
+                   last_change_at = CASE WHEN n.online IS DISTINCT FROM new.online THEN $4 ELSE n.last_change_at END
+            FROM new JOIN prev USING (id)
+            WHERE n.id = new.id
+            RETURNING n.id, prev.online AS prev, new.online AS online
+            """,
+            ids, onlines, serials, ctx.ts,
+        )
+        order = {onu_id: i for i, onu_id in enumerate(ids)}          # mantém a ordem da OLT (PON, ONU)
+        for row in sorted(changed, key=lambda x: order[x["id"]]):
+            pon_id, serial = pons[row["id"]]
+            if row["prev"] is not False and not row["online"]:
                 # caiu sem trap (ou é a primeira leitura e já estava offline)
-                await self._onu_went_offline(ctx, pon_id, onu_id, {"serial": o.get("serial")})
-            elif prev is False and o["online"]:
-                await self._onu_came_online(ctx, pon_id, onu_id)
+                await self._onu_went_offline(ctx, pon_id, row["id"], {"serial": serial})
+            elif row["prev"] is False and row["online"]:
+                await self._onu_came_online(ctx, pon_id, row["id"])
 
     async def _on_onu_optical(self, ctx: Ctx, r: dict) -> None:
-        rows = []
+        # Sprint 6: leituras, potência atual e encerramento de "sinal baixo" em
+        # lote (3 comandos por OLT em vez de ~3 por ONU).
+        ids, rxs, txs, pons = [], [], [], {}
         for o in r["onus"]:
             pon_id, onu_id = await self._onu(ctx, o["pon"], o["onu"])
             rx, tx = o.get("rx_dbm"), o.get("tx_dbm")
             if rx is None and tx is None:
                 continue          # ONU offline: sem leitura
-            rows.append((ctx.ts, ctx.tenant_id, onu_id, rx, tx))
-            await ctx.conn.execute("UPDATE onus SET rx_dbm = $2, tx_dbm = $3 WHERE id = $1", onu_id, rx, tx)
-            await self._apply_rx_rule(ctx, pon_id, onu_id, rx)
-        if rows:
-            await ctx.conn.executemany(
-                "INSERT INTO optical_readings (ts, tenant_id, onu_id, rx_dbm, tx_dbm) VALUES ($1, $2, $3, $4, $5)", rows)
+            ids.append(onu_id)
+            rxs.append(rx)
+            txs.append(tx)
+            pons[onu_id] = pon_id
+        if not ids:
+            return
+        await ctx.conn.execute(
+            "INSERT INTO optical_readings (ts, tenant_id, onu_id, rx_dbm, tx_dbm) "
+            "SELECT $1, $2, * FROM unnest($3::uuid[], $4::real[], $5::real[])",
+            ctx.ts, ctx.tenant_id, ids, rxs, txs)
+        await ctx.conn.execute(
+            "UPDATE onus n SET rx_dbm = t.rx, tx_dbm = t.tx FROM unnest($1::uuid[], $2::real[], $3::real[]) AS t(id, rx, tx) "
+            "WHERE n.id = t.id", ids, rxs, txs)
+        to_clear = []
+        for onu_id, rx in zip(ids, rxs):
+            action = rules.rx_low_action(rx)
+            if action == "open":
+                await self.open_alarm(ctx, AlarmRef("onu_rx_low", onu_id), pon_id=pons[onu_id], onu_id=onu_id,
+                                      details={"rx_dbm": rx})
+            elif action == "clear":
+                to_clear.append(AlarmRef("onu_rx_low", onu_id).dedup_key)
+        if to_clear:
+            await self._clear_many(ctx, "onu_rx_low", to_clear)
+
+    async def _clear_many(self, ctx: Ctx, kind: str, dedup_keys: list[str]) -> None:
+        """Encerra de uma vez os alarmes abertos dessas chaves (normalmente nenhum)."""
+        rows = await ctx.conn.fetch(
+            "UPDATE alarms SET status = 'cleared', cleared_at = $3 "
+            "WHERE tenant_id = $1 AND dedup_key = ANY($2::text[]) AND status <> 'cleared' RETURNING id",
+            ctx.tenant_id, dedup_keys, ctx.ts)
+        for row in rows:
+            log.info("alarme %s encerrado", kind)
+            ctx.events.append({"type": "alarm.cleared", "alarm_id": row["id"], "kind": kind, "olt_id": ctx.olt_id})
+            await self._enqueue_cleared(ctx, row["id"])
 
     async def _apply_rx_rule(self, ctx: Ctx, pon_id: UUID, onu_id: UUID, rx: float | None) -> None:
         action = rules.rx_low_action(rx)
