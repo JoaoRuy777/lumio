@@ -111,6 +111,14 @@ export function makeAlarm(over: Partial<Alarm> = {}): Alarm {
     latency_ms: 80,
     acknowledged_at: null,
     acknowledged_by: null,
+    assigned_to_id: null,
+    assigned_to: null,
+    assigned_at: null,
+    first_assigned_at: null,
+    work_closed_at: null,
+    work_closed_by: null,
+    resolution_cause: null,
+    resolution_notes: null,
     ...over,
   };
 }

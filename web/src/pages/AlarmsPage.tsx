@@ -9,18 +9,22 @@ const LIMIT = 50;
 const SEVERITIES: Severity[] = ["critical", "major", "minor", "warning"];
 const TABS = [
   { key: "open", label: "Abertos" },
+  { key: "mine", label: "Meus atendimentos" },
   { key: "cleared", label: "Histórico" },
 ] as const;
+type Tab = (typeof TABS)[number]["key"];
 
 export function AlarmsPage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("status") === "cleared" ? "cleared" : "open";
+  const raw = params.get("status");
+  const tab: Tab = raw === "cleared" || raw === "mine" ? raw : "open";
   const severity = params.getAll("severity") as Severity[];
   const offset = Number(params.get("offset") ?? 0);
 
   const { data, isPending, error } = useQuery({
     queryKey: ["alarms", tab, severity, offset],
-    queryFn: () => api<Page<Alarm>>(`/alarms${query({ status: tab, severity, limit: LIMIT, offset })}`),
+    queryFn: () =>
+      api<Page<Alarm>>(`/alarms${query(tab === "mine" ? { mine: true, severity, limit: LIMIT, offset } : { status: tab, severity, limit: LIMIT, offset })}`),
     refetchInterval: 30_000,
   });
 
@@ -87,7 +91,11 @@ export function AlarmsPage() {
           </p>
         ) : (
           <>
-            <AlarmTable alarms={data.items} history={tab === "cleared"} />
+            <AlarmTable
+              alarms={data.items}
+              history={tab === "cleared"}
+              emptyText={tab === "mine" ? "Nenhum chamado com você agora. Assuma um na aba Abertos." : undefined}
+            />
             <Pager total={data.total} limit={LIMIT} offset={offset} onChange={(o) => update({ offset: String(o) })} />
           </>
         )}

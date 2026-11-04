@@ -183,6 +183,15 @@ export interface Alarm {
   latency_ms: number | null;
   acknowledged_at: string | null;
   acknowledged_by: string | null;
+  // atendimento (chamado)
+  assigned_to_id: string | null;
+  assigned_to: string | null;
+  assigned_at: string | null;
+  first_assigned_at: string | null;
+  work_closed_at: string | null;
+  work_closed_by: string | null;
+  resolution_cause: Cause | null;
+  resolution_notes: string | null;
 }
 
 export interface Page<T> {
@@ -329,4 +338,53 @@ export interface UserInput {
   email: string;
   password: string;
   role: Role;
+}
+
+// ------------------------------------------------------------------ atendimento
+
+export type Cause =
+  | "fiber_third_party"
+  | "fiber_natural"
+  | "power"
+  | "equipment"
+  | "customer"
+  | "maintenance"
+  | "configuration"
+  | "no_fault"
+  | "other";
+
+export interface TimelineItem {
+  at: string;
+  kind: "opened" | "assigned" | "transferred" | "note" | "closed" | "reopened" | "notified" | "cleared";
+  actor: string | null;
+  target: string | null;
+  body: string | null;
+}
+
+export interface AttendanceOperator {
+  name: string;
+  taken: number;
+  closed: number;
+  open: number;
+  tme_min: number | null;
+  tma_min: number | null;
+  time_in_attendance_min: number;
+  notes: number;
+}
+
+export interface AttendanceReport {
+  summary: {
+    tickets: number;
+    assumed: number;
+    unattended: number;
+    closed: number;
+    in_progress: number;
+    tme_min: number | null;
+    tma_min: number | null;
+    tma_max_min: number | null;
+    sla_assume_min: number;
+    assumed_within_sla_pct: number | null;
+  };
+  operators: AttendanceOperator[];
+  causes: { cause: Cause; label: string; count: number; pct: number; tma_min: number | null }[];
 }

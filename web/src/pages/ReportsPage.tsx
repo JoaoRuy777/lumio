@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { api, ApiError, downloadFile, query, type AlarmKind, type AlarmsReport, type AvailabilityReport } from "../api";
+import { api, ApiError, downloadFile, query, type AlarmKind, type AlarmsReport, type AttendanceReport, type AvailabilityReport } from "../api";
 import { Button, Card, inputClass, StatTile, td, th } from "../components/ui";
-import { kindLabel } from "../format";
+import { humanMinutes, kindLabel } from "../format";
 
 type Preset = "1" | "7" | "30" | "custom";
 
@@ -48,7 +48,13 @@ export function ReportsPage() {
     enabled: params !== null,
   });
 
-  async function download(report: "availability" | "alarms", format: "csv" | "pdf") {
+  const attendance = useQuery({
+    queryKey: ["reports", "attendance", params],
+    queryFn: () => api<AttendanceReport>(`/reports/attendance${query(params ?? {})}`),
+    enabled: params !== null,
+  });
+
+  async function download(report: "availability" | "alarms" | "attendance", format: "csv" | "pdf") {
     if (!params) return;
     setError(null);
     try {
@@ -199,6 +205,122 @@ export function ReportsPage() {
           ONUs de um rompimento de fibra contam dentro dele. O CSV abre no Excel (separador ";" e vírgula decimal).
         </p>
       </Card>
+
+      <AttendanceSection report={attendance.data} onDownload={(f) => download("attendance", f)} disabled={!params} />
     </div>
+  );
+}
+
+function AttendanceSection({ report, onDownload, disabled }: { report?: AttendanceReport; onDownload: (f: "csv" | "pdf") => void; disabled: boolean }) {
+  const s = report?.summary;
+  const maxTaken = Math.max(1, ...(report?.operators.map((o) => o.taken) ?? [1]));
+  return (
+    <section className="space-y-4" aria-labelledby="atendimento-titulo">
+      <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
+        <div>
+          <h2 id="atendimento-titulo" className="text-lg font-semibold tracking-tight">
+            Atendimento da equipe
+          </h2>
+          <p className="text-sm text-slate-500">Chamados abertos no período: quem atendeu, em quanto tempo e por quê.</p>
+        </div>
+        <span className="flex gap-2">
+          <Button variant="secondary" onClick={() => onDownload("csv")} disabled={disabled}>
+            Baixar CSV
+          </Button>
+          <Button variant="secondary" onClick={() => onDownload("pdf")} disabled={disabled}>
+            Baixar PDF
+          </Button>
+        </span>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile
+          label="Chamados"
+          value={s?.tickets ?? "—"}
+          detail={s ? `${s.closed} encerrados · ${s.in_progress} em andamento · ${s.unattended} sem atendimento` : undefined}
+        />
+        <StatTile label="TME" value={humanMinutes(s?.tme_min)} detail="tempo médio até alguém assumir" />
+        <StatTile
+          label="TMA"
+          value={humanMinutes(s?.tma_min)}
+          detail={s?.tma_max_min != null ? `tempo médio de atendimento · maior: ${humanMinutes(s.tma_max_min)}` : "tempo médio de atendimento"}
+        />
+        <StatTile
+          label={`Assumidos em até ${s?.sla_assume_min ?? 15} min`}
+          value={s?.assumed_within_sla_pct != null ? `${s.assumed_within_sla_pct.toLocaleString("pt-BR")} %` : "—"}
+          detail="meta de resposta do NOC"
+        />
+      </div>
+
+      <Card title="Por operador">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50">
+              <tr>
+                <th className={th}>Operador</th>
+                <th className={th}>Chamados assumidos</th>
+                <th className={`${th} text-right`}>Encerrados</th>
+                <th className={`${th} text-right`}>Em andamento</th>
+                <th className={`${th} text-right`}>TME</th>
+                <th className={`${th} text-right`}>TMA</th>
+                <th className={`${th} text-right`}>Tempo em atendimento</th>
+                <th className={`${th} text-right`}>Anotações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 tabular-nums">
+              {report?.operators.map((o) => (
+                <tr key={o.name}>
+                  <td className={`${td} font-medium`}>{o.name}</td>
+                  <td className={td}>
+                    <span className="flex items-center gap-2">
+                      <span className="w-6 text-right">{o.taken}</span>
+                      <span className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+                        <span className="block h-full rounded-full bg-brand-500" style={{ width: `${(100 * o.taken) / maxTaken}%` }} />
+                      </span>
+                    </span>
+                  </td>
+                  <td className={`${td} text-right`}>{o.closed}</td>
+                  <td className={`${td} text-right`}>{o.open}</td>
+                  <td className={`${td} text-right`}>{humanMinutes(o.tme_min)}</td>
+                  <td className={`${td} text-right`}>{humanMinutes(o.tma_min)}</td>
+                  <td className={`${td} text-right`}>{humanMinutes(o.time_in_attendance_min)}</td>
+                  <td className={`${td} text-right`}>{o.notes}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {report && report.operators.length === 0 && (
+            <p className="px-4 py-6 text-sm text-slate-500">Nenhum chamado atendido no período.</p>
+          )}
+        </div>
+      </Card>
+
+      <Card title="Causas dos chamados encerrados">
+        {report && report.causes.length > 0 ? (
+          <ul className="divide-y divide-slate-100 text-sm">
+            {report.causes.map((c) => (
+              <li key={c.cause} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 tabular-nums">
+                <span className="min-w-0 flex-1">{c.label}</span>
+                <span className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+                  <span className="block h-full rounded-full bg-brand-500" style={{ width: `${c.pct}%` }} />
+                </span>
+                <span className="w-28 text-right text-slate-600">
+                  {c.count} · {c.pct.toLocaleString("pt-BR")} %
+                </span>
+                <span className="w-24 text-right text-slate-600" title="TMA desta causa">
+                  {humanMinutes(c.tma_min)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 py-6 text-sm text-slate-500">Nenhum chamado encerrado no período.</p>
+        )}
+        <p className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
+          TME: da abertura até alguém assumir. TMA: de assumido até o operador encerrar. Tempo em atendimento: soma dos
+          trechos em que o chamado ficou com cada um (transferências dividem o tempo).
+        </p>
+      </Card>
+    </section>
   );
 }
