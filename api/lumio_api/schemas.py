@@ -142,3 +142,89 @@ class CollectorOlt(BaseModel):
     sys_name: str | None
     status_interval_s: int
     optical_interval_s: int
+
+# ------------------------------------------------------------------ painel (sprint 4)
+
+Severity = Literal["critical", "major", "minor", "warning"]
+AlarmStatus = Literal["active", "acknowledged", "cleared"]
+
+
+class PonOut(BaseModel):
+    id: UUID
+    name: str
+    onus_total: int
+    onus_online: int
+    rx_avg: float | None
+    rx_min: float | None
+    active_alarms: int
+
+
+class OnuOut(BaseModel):
+    id: UUID
+    olt_id: UUID
+    olt_name: str
+    pon_id: UUID
+    pon: str
+    onu_index: int
+    serial: str | None
+    online: bool | None          # None = ainda não coletado
+    rx_dbm: float | None
+    tx_dbm: float | None
+    last_change_at: datetime | None
+    last_seen_at: datetime | None
+    active_alarms: list[str]     # tipos dos alarmes abertos
+
+
+class OnuPage(BaseModel):
+    items: list[OnuOut]
+    total: int
+
+
+class Reading(BaseModel):
+    ts: datetime
+    rx_dbm: float | None
+    tx_dbm: float | None
+
+
+class Readings(BaseModel):
+    items: list[Reading]
+    bucket_s: int                # 0 = leituras cruas; >0 = média por intervalo
+
+
+class AlarmOut(BaseModel):
+    id: UUID
+    kind: str
+    severity: Severity
+    status: AlarmStatus
+    source: str
+    olt_id: UUID
+    olt_name: str
+    pon_id: UUID | None
+    pon: str | None
+    onu_id: UUID | None
+    onu_index: int | None
+    onu_serial: str | None
+    parent_id: UUID | None
+    children: int                # ONUs agrupadas sob um rompimento de fibra
+    occurrences: int
+    details: dict
+    first_seen_at: datetime
+    last_seen_at: datetime
+    created_at: datetime
+    cleared_at: datetime | None
+    latency_ms: float | None
+    acknowledged_at: datetime | None
+    acknowledged_by: str | None  # nome de quem reconheceu
+
+
+class AlarmPage(BaseModel):
+    items: list[AlarmOut]
+    total: int
+
+
+class Overview(BaseModel):
+    olts: dict[str, int]         # total + contagem por status da coleta
+    onus: dict[str, int]         # total, online, offline, unknown
+    rx_low: int                  # ONUs com sinal abaixo do limite
+    alarms: dict[str, int]       # abertos (sem os agrupados) por severidade + total
+    recent_alarms: list[AlarmOut]

@@ -20,6 +20,7 @@ class Settings:
     secret_key: str                   # chave Fernet para a community SNMP
     service_token: str                # usado pelo coletor em /api/internal
     db_role: str | None = None        # só nos testes: SET ROLE ao conectar
+    redis_url: str | None = None      # tempo real (/api/events); sem ele, o painel cai no polling
     token_ttl_minutes: int = 12 * 60
     snmp_timeout: float = 2.0
     snmp_retries: int = 1
@@ -36,5 +37,6 @@ class Settings:
             secret_key=_required("LUMIO_SECRET_KEY"),
             service_token=_required("LUMIO_SERVICE_TOKEN"),
             db_role=os.environ.get("LUMIO_DB_ROLE") or None,
+            redis_url=os.environ.get("REDIS_URL") or None,
             token_ttl_minutes=int(os.environ.get("LUMIO_TOKEN_TTL_MINUTES", 12 * 60)),
         )
