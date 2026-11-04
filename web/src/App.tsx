@@ -11,7 +11,9 @@ import { OltsPage } from "./pages/OltsPage";
 // a tela da ONU traz o Recharts (o maior pedaço do painel): carrega só quando abrir
 const OnuPage = lazy(() => import("./pages/OnuPage").then((m) => ({ default: m.OnuPage })));
 import { OnusPage } from "./pages/OnusPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { OverviewPage } from "./pages/OverviewPage";
+import { ReportsPage } from "./pages/ReportsPage";
 
 export function App() {
   const [loggedIn, setLoggedIn] = useState(() => session.get() !== null);
@@ -57,6 +59,8 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
           }
         />
         <Route path="alarms" element={<AlarmsPage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="notifications" element={<MeGate>{(me) => <NotificationsPage me={me} />}</MeGate>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
@@ -111,6 +115,12 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             </NavLink>
             <NavLink to="/onus" className={navClass}>
               ONUs
+            </NavLink>
+            <NavLink to="/reports" className={navClass}>
+              Relatórios
+            </NavLink>
+            <NavLink to="/notifications" className={navClass}>
+              Notificações
             </NavLink>
           </nav>
         </header>

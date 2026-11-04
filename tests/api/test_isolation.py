@@ -125,3 +125,15 @@ async def test_rotas_do_painel_nao_vazam_dados(client, pool, two_tenants):
     # filtrar pela OLT do outro também não traz nada
     assert (await client.get("/api/onus", headers=b, params={"olt_id": str(olt_a)})).json()["total"] == 0
     assert await pool.fetchval("SELECT status FROM alarms WHERE id = $1", alarm_a) == "active"
+
+
+async def test_relatorios_so_contam_o_proprio_provedor(client, two_tenants):
+    """Sprint 5: o alarme do A não entra no relatório do B (nem em CSV)."""
+    b = two_tenants["b"]
+    av = (await client.get("/api/reports/availability", headers=b)).json()
+    assert av["olts"] == [] and av["overall_availability_pct"] is None
+    assert (await client.get("/api/reports/alarms", headers=b)).json()["total"] == 0
+    csv_b = (await client.get("/api/reports/alarms", headers=b, params={"format": "csv"})).content.decode("utf-8-sig")
+    assert csv_b.count("\r\n") == 1                     # só o cabeçalho
+    a = (await client.get("/api/reports/alarms", headers=two_tenants["a"])).json()
+    assert a["total"] == 1

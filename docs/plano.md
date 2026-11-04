@@ -105,3 +105,9 @@ Toda tabela, exceto `tenants`, tem `tenant_id` e política RLS
 18. Alarme reconhecido continua aberto até a falha passar (sprint 4).
 19. Teste de ponta a ponta no navegador com Playwright, no CI depois do smoke
     (sprint 4).
+20. Notificações por fila no Postgres (outbox), enviada por um processo
+    separado com retry; rompimento de fibra vira um aviso só (sprint 5).
+21. Disponibilidade calculada pelos alarmes, truncada (nunca 100 % com falha);
+    CSV no padrão do Excel brasileiro; PDF com reportlab (sprint 5).
+22. Webhook assinado com HMAC-SHA256 e bloqueio de destinos internos (SSRF)
+    (sprint 5).

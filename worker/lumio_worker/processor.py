@@ -165,7 +165,39 @@ class Processor:
             ctx.events.append({"type": "alarm.opened", "alarm_id": row["id"], "kind": ref.kind,
                                "severity": ref.severity, "olt_id": ctx.olt_id})
             log.info("alarme %s (%s) aberto em %.0f ms", ref.kind, ref.severity, row["latency_ms"])
+            if parent_id is None:            # ONU dentro de um rompimento já avisado: não avisa de novo
+                await self._enqueue_opened(ctx, row["id"], ref)
         return row["id"]
+
+    async def _enqueue_opened(self, ctx: Ctx, alarm_id: UUID, ref: AlarmRef) -> None:
+        """Entrega para cada canal ativo que aceita a severidade (mesma transação do alarme)."""
+        await ctx.conn.execute(
+            """
+            INSERT INTO notifications (tenant_id, channel_id, alarm_id, event, next_attempt_at)
+            SELECT $1, c.id, $2, 'opened', now() + make_interval(secs => $4)
+            FROM notification_channels c
+            WHERE c.tenant_id = $1 AND c.enabled
+              AND (CASE c.min_severity WHEN 'critical' THEN 0 WHEN 'major' THEN 1 WHEN 'minor' THEN 2 ELSE 3 END) >= $3
+            ON CONFLICT DO NOTHING
+            """,
+            ctx.tenant_id, alarm_id, rules.SEVERITY_RANK[ref.severity], rules.NOTIFY_GRACE_S.get(ref.kind, 0.0),
+        )
+
+    async def _enqueue_cleared(self, ctx: Ctx, alarm_id: UUID) -> None:
+        # normalizou antes de o aviso sair (oscilação): não avisa nem a queda nem a volta
+        await ctx.conn.execute(
+            "UPDATE notifications SET status = 'suppressed', last_error = 'normalizou antes do envio' "
+            "WHERE alarm_id = $1 AND event = 'opened' AND status = 'pending'", alarm_id)
+        # avisa a volta só para quem recebeu (ou está recebendo) a queda
+        await ctx.conn.execute(
+            """
+            INSERT INTO notifications (tenant_id, channel_id, alarm_id, event)
+            SELECT n.tenant_id, n.channel_id, n.alarm_id, 'cleared'
+            FROM notifications n JOIN notification_channels c ON c.id = n.channel_id
+            WHERE n.alarm_id = $1 AND n.event = 'opened' AND n.status IN ('sending', 'sent')
+              AND c.enabled AND c.notify_clear
+            ON CONFLICT DO NOTHING
+            """, alarm_id)
 
     async def clear_alarm(self, ctx: Ctx, ref: AlarmRef) -> UUID | None:
         alarm_id = await ctx.conn.fetchval(
@@ -177,6 +209,7 @@ class Processor:
             log.info("alarme %s encerrado", ref.kind)
             ctx.events.append({"type": "alarm.cleared", "alarm_id": alarm_id, "kind": ref.kind,
                                "olt_id": ctx.olt_id})
+            await self._enqueue_cleared(ctx, alarm_id)
         return alarm_id
 
     async def _open_alarm_id(self, ctx: Ctx, ref: AlarmRef) -> UUID | None:
@@ -205,6 +238,12 @@ class Processor:
                 "UPDATE alarms SET parent_id = $1 WHERE pon_id = $2 AND kind = 'onu_offline' "
                 "AND status <> 'cleared' AND id <> $1",
                 parent, pon_id,
+            )
+            # os avisos dessas ONUs ainda na espera viram um só: o do rompimento
+            await ctx.conn.execute(
+                "UPDATE notifications SET status = 'suppressed', last_error = 'agrupado no rompimento de fibra' "
+                "WHERE status = 'pending' AND alarm_id IN (SELECT id FROM alarms WHERE parent_id = $1)",
+                parent,
             )
 
     async def _onu_came_online(self, ctx: Ctx, pon_id: UUID, onu_id: UUID) -> None:

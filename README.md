@@ -4,15 +4,18 @@ Monitoramento de redes GPON (OLTs e ONUs) para provedores regionais. Este
 repositório é o MVP descrito no TCC *Lumio: concepção e desenvolvimento de
 uma startup de monitoramento automatizado de OLTs* (UNIMAR, 2026).
 
-Estado atual: **sprint 4 (dashboard em tempo real)** de seis. Próximas:
-notificações e relatórios (5), desempenho e resultados (6). O plano completo
-e as decisões estão em [`docs/plano.md`](docs/plano.md).
+Estado atual: **sprint 5 (notificações e relatórios)** de seis. Próxima:
+desempenho e resultados (6). O plano completo e as decisões estão em
+[`docs/plano.md`](docs/plano.md).
 
 ```
                      painel React ◀─SSE─ API FastAPI ──▶ Postgres (RLS por provedor)
                                              ▲    ▲              ▲
                           cadastro de OLTs   │    └─ Redis Pub/Sub ◀─┐
 simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker ──────────┘
+                                                       │ fila no Postgres
+                                                       ▼
+                                          notificador ──▶ e-mail (SMTP) / webhook
 ```
 
 ## O que já funciona
@@ -28,20 +31,28 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
 - **Worker de alarmes** (`worker/`): consome o stream (consumer group, com
   confirmação só depois de gravar), guarda leituras e o estado das ONUs no
   Postgres, aplica as regras de alarme abaixo (deduplicação e latência
-  registrada) e, depois do commit, avisa o painel por Redis Pub/Sub.
+  registrada) e, depois do commit, avisa o painel por Redis Pub/Sub. Na mesma
+  transação do alarme, põe as notificações na fila.
+- **Notificador** (`worker/`, `python -m lumio_worker notify`): envia a fila
+  por **e-mail** (SMTP) e **webhook** (POST JSON assinado com HMAC-SHA256), com
+  novas tentativas e espera crescente. Um rompimento de fibra vira **um** aviso,
+  não 17.
 - **API** (`api/`): FastAPI com login JWT, cadastro de provedor, CRUD de OLTs
   com limite do plano, "Testar conexão", descoberta automática de PONs e ONUs,
   rotas do painel (visão geral, PONs, ONUs, histórico de potência, alarmes com
-  reconhecimento) e **avisos em tempo real por SSE**. Cada requisição roda com
+  reconhecimento), **avisos em tempo real por SSE**, canais de notificação e
+  **relatórios** de disponibilidade e de alarmes (JSON, CSV e PDF). Cada requisição roda com
   o tenant do usuário, e o **RLS do Postgres** esconde os dados dos outros.
 - **Painel** (`web/`): React; visão geral, alarmes (abertos e histórico,
   rompimento de fibra agrupando as ONUs, reconhecer), OLTs (cadastro e detalhe
   por PON), ONUs (filtros e gráfico de potência). Atualiza em tempo real: um
   alarme novo aparece em ~1 s, sem recarregar. Se o tempo real cair, as telas
   continuam atualizando a cada 30 s e o topo mostra "Sem tempo real".
+  Também: **Relatórios** (período, números, baixar CSV/PDF) e **Notificações**
+  (canais, mensagem de teste, histórico de entregas).
 - **Banco** (`db/`): Postgres 17 com Row-Level Security por tenant; migrações
   em SQL puro aplicadas pelo serviço `migrate`.
-- **Testes**: 87 no backend (`tests/`), 21 no painel (`web/src/__tests__`) e
+- **Testes**: 121 no backend (`tests/`), 27 no painel (`web/src/__tests__`) e
   1 de ponta a ponta no navegador (`web/e2e`, Playwright).
 
 ## Rodando com Docker
@@ -57,6 +68,7 @@ docker compose up --build
 | http://localhost:3000 | painel (crie a conta do provedor e cadastre as OLTs) |
 | http://localhost:8000/api/docs | API da Lumio (Swagger) |
 | http://localhost:8080/docs | API de cenários do simulador (provocar falhas) |
+| http://localhost:8025 | Mailpit: caixa de entrada falsa com os e-mails de alerta |
 
 Sem `.env`, o compose usa senhas e chaves padrão que servem **só para
 desenvolvimento**; para qualquer outro uso, `cp .env.example .env` e troque
@@ -90,6 +102,12 @@ tudo (o arquivo explica como gerar cada chave).
 
 6. Para voltar ao normal: `{"type":"reset"}`; os alarmes saem de "Abertos"
    sozinhos e vão para o **Histórico** com a duração.
+7. **Notificações** → **Novo canal** (e-mail, qualquer endereço). **Enviar
+   teste** e veja em http://localhost:8025. Repita a falha do passo 4: chega
+   *um* e-mail "[Lumio] CRÍTICO: Rompimento de fibra", e outro "NORMALIZADO"
+   depois do reset.
+8. **Relatórios**: disponibilidade por OLT, piores ONUs, alarmes e MTTR do
+   período; **Baixar CSV** (abre no Excel em português) ou **PDF**.
 
 Automático, com a stack no ar:
 
@@ -174,6 +192,9 @@ Documentação interativa em http://localhost:8000/api/docs. Principais rotas:
 | `GET /api/alarms` | alarmes: `status` (`open`, `cleared`, `all`...), `severity`, `olt_id`, `onu_id`, `parent_id`, `from`/`to` |
 | `POST /api/alarms/{id}/ack` | reconhecer (vale também para as ONUs de um rompimento) |
 | `GET /api/events` | avisos em tempo real (SSE) do provedor logado |
+| `/api/notification-channels` | canais (CRUD; criar e remover exigem admin); `POST …/{id}/test`, `GET …/{id}/deliveries`, `POST …/{id}/rotate-secret` |
+| `GET /api/reports/availability` | disponibilidade por OLT e piores ONUs; `from`, `to` (com fuso), `format=json|csv|pdf` |
+| `GET /api/reports/alarms` | alarmes do período, por tipo e MTTR; mesmos parâmetros |
 | `GET /api/internal/collector/olts` | só para o coletor (header `X-Service-Token`) |
 
 OLT, ONU ou alarme de outro provedor responde **404** (não 403), para nem
@@ -260,11 +281,13 @@ worker/lumio_worker/
   rules.py            limites, severidades e chaves de deduplicação (puro)
   processor.py        grava leituras/estado e abre ou encerra alarmes
   consumer.py         consumer group do Redis Stream, dead letter
+  notify.py           notificador: e-mail, webhook assinado, retry, proteção SSRF
 api/lumio_api/
   db.py               pool e transação com app.tenant_id (RLS)
   security.py         argon2, JWT e cifra da community (Fernet)
   snmp.py             testar conexão e descoberta (drivers do coletor)
-  routers/            auth, olts, overview, network (PONs/ONUs), alarms, events (SSE), internal
+  reports.py          cálculo da disponibilidade e geração de CSV/PDF
+  routers/            auth, olts, overview, network, alarms, events (SSE), channels, reports, internal
 web/src/
   pages/              visão geral, alarmes, OLTs, ONUs, login/cadastro
   components/         tabela de alarmes, gráfico de potência, formulário de OLT
@@ -281,6 +304,30 @@ docs/plano.md         plano das sprints e decisões
 ## Decisões
 
 A lista completa está em [`docs/plano.md`](docs/plano.md#decisões).
+
+### Sprint 5
+
+- **Fila de notificações no Postgres (outbox)**: o worker grava a entrega na
+  mesma transação do alarme; um processo separado (`notifier`) envia. Nada se
+  perde se o SMTP cair, e reprocessar o stream não duplica e-mail (índice único
+  por canal + alarme + evento).
+- **Sem spam**: "ONU offline" espera 15 s antes de sair; se virar parte de um
+  rompimento, o aviso dela é cancelado e sai só o do rompimento. Alarme que
+  normaliza antes de o aviso sair não gera aviso nenhum.
+- **Retry**: até 6 tentativas, esperando 30 s, 1, 2, 4, 8 min; depois fica
+  "Falhou" com o erro visível na tela de Notificações.
+- **Webhook assinado** (`X-Lumio-Signature: sha256=HMAC(corpo)`), segredo
+  gerado pela Lumio, mostrado uma vez e guardado cifrado.
+- **Proteção contra SSRF**: webhook para IP interno é recusado
+  (`LUMIO_WEBHOOK_ALLOW_PRIVATE=false` em produção).
+- **Disponibilidade calculada pelos alarmes**: soma dos períodos de "ONU
+  offline" dentro do intervalo; tempo com a OLT inacessível aparece separado
+  (não dá para saber o estado das ONUs). Valores **truncados**: com qualquer
+  falha, nunca aparece 100 %.
+- **CSV para o Excel brasileiro**: separador `;`, vírgula decimal, UTF-8 com
+  BOM, horários de Brasília. PDF com reportlab (sem dependências de sistema).
+- **Mailpit** no compose para ver os e-mails em desenvolvimento; em produção,
+  qualquer SMTP (variáveis `SMTP_*` no `.env`).
 
 ### Sprint 4
 
