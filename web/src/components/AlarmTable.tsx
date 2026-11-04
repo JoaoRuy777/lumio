@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
 import { Link } from "react-router";
 import { api, ApiError, query, type Alarm, type Page } from "../api";
-import { ago, dateTime, dbm, duration, kindLabel, location } from "../format";
+import { ago, dateTime, dbm, duration, kindLabel, location, stopwatch } from "../format";
+import { useNow } from "../useNow";
 import { useLive } from "../live";
 import { AlarmStatusBadge, Button, SeverityBadge, td, th } from "./ui";
 
@@ -14,7 +15,37 @@ function Detail({ alarm }: { alarm: Alarm }) {
   return null;
 }
 
-function Children({ parent }: { parent: Alarm }) {
+/** Quem está com o chamado e há quanto tempo (cronômetro ao vivo). */
+export function Attendance({ alarm: a, now }: { alarm: Alarm; now: number }) {
+  if (a.work_closed_at) {
+    return (
+      <p className="mt-1 text-xs text-slate-500">
+        Atendido por {a.work_closed_by ?? "—"}
+        {a.first_assigned_at && <> em {stopwatch(a.first_assigned_at, a.work_closed_at)}</>}
+      </p>
+    );
+  }
+  if (a.assigned_to && a.first_assigned_at) {
+    return (
+      <p className="mt-1 text-xs text-slate-600">
+        Com <span className="font-medium">{a.assigned_to}</span> ·{" "}
+        <span className="font-mono tabular-nums" title="tempo em atendimento">
+          {stopwatch(a.first_assigned_at, null, now)}
+        </span>
+      </p>
+    );
+  }
+  if (!a.parent_id && a.status !== "cleared") {
+    return (
+      <p className="mt-1 text-xs text-amber-700">
+        Aguardando há <span className="font-mono tabular-nums">{stopwatch(a.created_at, null, now)}</span>
+      </p>
+    );
+  }
+  return null;
+}
+
+export function Children({ parent }: { parent: Alarm }) {
   const { data, isPending } = useQuery({
     queryKey: ["alarms", "children", parent.id],
     queryFn: () => api<Page<Alarm>>(`/alarms${query({ parent_id: parent.id, status: "all", limit: 200 })}`),
@@ -40,26 +71,27 @@ function Children({ parent }: { parent: Alarm }) {
   );
 }
 
-export function AlarmTable({ alarms, history = false, compact = false }: { alarms: Alarm[]; history?: boolean; compact?: boolean }) {
+export function AlarmTable({ alarms, history = false, compact = false, emptyText }: { alarms: Alarm[]; history?: boolean; compact?: boolean; emptyText?: string }) {
   const qc = useQueryClient();
   const { fresh } = useLive();
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
-  const ack = useMutation({
-    mutationFn: (a: Alarm) => api<Alarm>(`/alarms/${a.id}/ack`, { method: "POST" }),
+  const now = useNow();
+  const assume = useMutation({
+    mutationFn: (a: Alarm) => api<Alarm>(`/alarms/${a.id}/assign`, { method: "POST", body: {} }),
     onSuccess: () => {
       setError(null);
       qc.invalidateQueries({ queryKey: ["alarms"] });
       qc.invalidateQueries({ queryKey: ["overview"] });
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "não foi possível reconhecer"),
+    onError: (e) => setError(e instanceof ApiError ? e.message : "não foi possível assumir"),
   });
 
   if (alarms.length === 0) {
     return (
       <p className="px-4 py-10 text-center text-sm text-slate-500">
-        {history ? "Nenhum alarme no período." : "Nenhum alarme aberto. Rede normal."}
+        {emptyText ?? (history ? "Nenhum alarme no período." : "Nenhum alarme aberto. Rede normal.")}
       </p>
     );
   }
@@ -100,7 +132,9 @@ export function AlarmTable({ alarms, history = false, compact = false }: { alarm
                 </td>
                 <td className={td}>
                   <p className="font-medium">
-                    {kindLabel[a.kind]}
+                    <Link to={`/alarms/${a.id}`} className="hover:underline">
+                      {kindLabel[a.kind]}
+                    </Link>
                     <Detail alarm={a} />
                     {fresh.has(a.id) && a.status === "active" && (
                       <span className="ml-2 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white uppercase">novo</span>
@@ -127,16 +161,20 @@ export function AlarmTable({ alarms, history = false, compact = false }: { alarm
                 )}
                 <td className={td}>
                   <AlarmStatusBadge status={a.status} />
-                  {a.acknowledged_by && a.status === "acknowledged" && (
-                    <p className="mt-1 text-xs text-slate-500">por {a.acknowledged_by}</p>
-                  )}
+                  <Attendance alarm={a} now={now} />
                 </td>
                 {!compact && (
-                  <td className={`${td} text-right`}>
-                    {a.status === "active" && (
-                      <Button variant="secondary" disabled={ack.isPending} onClick={() => ack.mutate(a)}>
-                        Reconhecer
+                  <td className={`${td} text-right whitespace-nowrap`}>
+                    {!a.parent_id && !a.assigned_to && !a.work_closed_at && a.status !== "cleared" ? (
+                      <Button variant="secondary" disabled={assume.isPending} onClick={() => assume.mutate(a)}>
+                        Assumir
                       </Button>
+                    ) : (
+                      !a.parent_id && (
+                        <Link to={`/alarms/${a.id}`} className="text-sm font-medium text-brand-600 hover:underline">
+                          Abrir chamado
+                        </Link>
+                      )
                     )}
                   </td>
                 )}

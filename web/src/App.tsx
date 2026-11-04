@@ -7,6 +7,7 @@ import { LiveIndicator, LiveProvider } from "./live";
 import { ThemeToggle } from "./theme";
 import { AlarmsPage } from "./pages/AlarmsPage";
 import { AccountPage } from "./pages/AccountPage";
+import { AlarmPage } from "./pages/AlarmPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OltPage } from "./pages/OltPage";
 import { OltsPage } from "./pages/OltsPage";
@@ -65,6 +66,7 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
           }
         />
         <Route path="alarms" element={<AlarmsPage />} />
+        <Route path="alarms/:id" element={<MeGate>{(me) => <AlarmPage me={me} />}</MeGate>} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="notifications" element={<MeGate>{(me) => <NotificationsPage me={me} />}</MeGate>} />
         <Route path="users" element={<MeGate>{(me) => <UsersPage me={me} />}</MeGate>} />

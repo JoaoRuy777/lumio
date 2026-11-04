@@ -52,6 +52,11 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
   Também: **Relatórios** (período, números, baixar CSV/PDF) e **Notificações**
   (canais, mensagem de teste, histórico de entregas) e **Usuários** (o administrador
   cria acessos para a equipe, como administrador ou operador).
+- **Atendimento de chamados (NOC)**: o operador assume (ou transfere) o alarme,
+  acompanha numa página própria com cronômetros (espera e tempo de atendimento),
+  anota o que fez numa linha do tempo e encerra com a causa. Aba "Meus
+  atendimentos" e relatório da equipe com TME, TMA, chamados por operador e
+  causas (tela, CSV e PDF).
 - **Banco** (`db/`): Postgres 17 com Row-Level Security por tenant; migrações
   em SQL puro aplicadas pelo serviço `migrate`.
 - **Desempenho** (`scripts/bench/`): teste de carga com o simulador em vários
@@ -60,7 +65,7 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
 - **Produção** (`docker-compose.prod.yml`, `deploy/`): HTTPS automático
   (Caddy), só as portas 80/443 expostas, segredos obrigatórios no `.env`,
   backup diário do banco.
-- **Testes**: 137 no backend (`tests/`), 30 no painel (`web/src/__tests__`) e
+- **Testes**: 149 no backend (`tests/`), 38 no painel (`web/src/__tests__`) e
   1 de ponta a ponta no navegador (`web/e2e`, Playwright).
 
 ## Rodando com Docker

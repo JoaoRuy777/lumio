@@ -60,10 +60,22 @@ test("falha no simulador aparece no dashboard em tempo real", async ({ page, req
   await row.getByRole("button", { name: "Ver 16 ONUs afetadas" }).click();
   await expect(page.getByRole("list", { name: /ONUs afetadas/ }).getByRole("listitem")).toHaveCount(16);
 
-  // 7. reconhecer
-  await row.getByRole("button", { name: "Reconhecer" }).click();
+  // 7. atendimento: assumir, anotar e encerrar com a causa
+  await row.getByRole("button", { name: "Assumir" }).click();
   await expect(row.getByText("Reconhecido")).toBeVisible();
-  await expect(row.getByText("por Ana Operadora")).toBeVisible();
+  await expect(row.getByText("Ana Operadora")).toBeVisible();
+  await expect(row.getByTitle("tempo em atendimento")).toBeVisible();
+  await row.getByRole("link", { name: "Rompimento de fibra" }).click();
+  await expect(page.getByText("Em atendimento", { exact: true })).toBeVisible();
+  await page.getByLabel("Anotação", { exact: true }).fill("Equipe de campo enviada");
+  await page.getByRole("button", { name: "Anotar" }).click();
+  await expect(page.getByRole("list", { name: "Linha do tempo" }).getByText("Equipe de campo enviada")).toBeVisible();
+  await page.getByRole("button", { name: "Encerrar atendimento" }).click();
+  await page.getByLabel("Causa", { exact: true }).selectOption("fiber_third_party");
+  await page.getByLabel("O que foi feito", { exact: true }).fill("Fibra rompida por obra; fusão refeita");
+  await page.getByRole("button", { name: "Encerrar", exact: true }).click();
+  await expect(page.getByText("Atendimento encerrado")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Linha do tempo" }).getByText(/encerrou o atendimento/)).toBeVisible();
 
   // 8. visão geral reflete a falha
   await page.getByRole("link", { name: "Visão geral" }).click();

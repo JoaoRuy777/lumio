@@ -73,16 +73,26 @@ describe("tabela de alarmes", () => {
     expect(calls[0].url.searchParams.get("parent_id")).toBe("alarm-1");
   });
 
-  it("reconhecer chama a API e recarrega", async () => {
+  it("assumir chama a API; chamado assumido mostra quem está com ele e o cronômetro", async () => {
     const calls = mockApi({
-      "POST /alarms/alarm-1/ack": () => ({ json: makeAlarm({ status: "acknowledged", acknowledged_by: "Ana" }) }),
+      "POST /alarms/alarm-1/assign": () => ({ json: makeAlarm({ status: "acknowledged", assigned_to: "Ana" }) }),
     });
-    renderWithQuery(<AlarmTable alarms={[makeAlarm(), makeAlarm({ id: "x", status: "acknowledged", acknowledged_by: "Bia" })]} />);
-    // só o ativo tem o botão; o reconhecido mostra quem reconheceu
-    expect(screen.getAllByRole("button", { name: "Reconhecer" })).toHaveLength(1);
-    expect(screen.getByText("por Bia")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Reconhecer" }));
-    await waitFor(() => expect(calls.some((c) => c.key === "POST /alarms/alarm-1/ack")).toBe(true));
+    const tenMinAgo = new Date(Date.now() - 10 * 60_000).toISOString();
+    renderWithQuery(
+      <AlarmTable
+        alarms={[
+          makeAlarm(),
+          makeAlarm({ id: "x", status: "acknowledged", assigned_to: "Bia", assigned_to_id: "u2", first_assigned_at: tenMinAgo }),
+        ]}
+      />,
+    );
+    // só o que ninguém pegou tem o botão; o outro mostra quem está com ele
+    expect(screen.getAllByRole("button", { name: "Assumir" })).toHaveLength(1);
+    expect(screen.getByText("Bia")).toBeInTheDocument();
+    expect(screen.getByTitle("tempo em atendimento")).toHaveTextContent(/^10:0\d$/);
+    expect(screen.getByText(/Aguardando há/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Assumir" }));
+    await waitFor(() => expect(calls.some((c) => c.key === "POST /alarms/alarm-1/assign")).toBe(true));
   });
 
   it("filtros da tela de alarmes vão para a API e para a URL", async () => {
