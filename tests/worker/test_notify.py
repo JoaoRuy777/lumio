@@ -309,6 +309,43 @@ async def test_smtp_com_login(processor, pool, smtp_with_auth, password, ok):
         assert "recusou o usuário/senha de alertas@lumio.test" in row["last_error"]
 
 
+async def add_reset(pool, processor, token: str) -> None:
+    """Usuário com um pedido de "esqueci minha senha", como a API grava."""
+    await processor.handle(rec("event", kind="olt_reachable", source="poll"))      # cria o tenant
+    user = await pool.fetchval(
+        "INSERT INTO users (tenant_id, email, name, password_hash) VALUES ($1, 'ana@a.com.br', 'Ana', 'x') RETURNING id",
+        processor.tenant_id)
+    await pool.execute(
+        "INSERT INTO password_resets (user_id, token_hash, token_enc, expires_at) "
+        "VALUES ($1, 'hash', $2, now() + interval '1 hour')", user, Fernet(KEY.encode()).encrypt(token.encode()).decode())
+
+
+async def test_envia_link_de_redefinicao_de_senha(processor, pool, smtp):
+    inbox, cfg = smtp
+    await add_reset(pool, processor, "token-secreto-do-link-123")
+    assert await Notifier(pool, KEY, cfg, public_url="https://painel.lumio.test").run_once() == 1
+
+    [msg] = inbox.messages
+    assert msg.rcpt_tos == ["ana@a.com.br"]
+    parsed = message_from_bytes(msg.content, policy=policy.default)
+    assert parsed["Subject"] == "[Lumio] Redefinição de senha"
+    link = "https://painel.lumio.test/redefinir-senha?token=token-secreto-do-link-123"
+    assert link in parsed.get_body(preferencelist=("plain",)).get_content()
+    assert link in parsed.get_body(preferencelist=("html",)).get_content()
+    row = await pool.fetchrow("SELECT sent_at, token_enc FROM password_resets")
+    assert row["sent_at"] is not None and row["token_enc"] is None       # enviado, a cópia cifrada some
+    assert await Notifier(pool, KEY, cfg, public_url="https://painel.lumio.test").run_once() == 0   # não reenvia
+
+
+async def test_redefinicao_sem_endereco_do_painel_desiste(processor, pool, smtp):
+    inbox, cfg = smtp
+    await add_reset(pool, processor, "token-secreto-do-link-123")
+    await Notifier(pool, KEY, cfg).run_once()                             # sem public_url não há link
+    row = await pool.fetchrow("SELECT sent_at, token_enc, last_error FROM password_resets")
+    assert not inbox.messages and row["sent_at"] is None and row["token_enc"] is None
+    assert "LUMIO_PUBLIC_URL" in row["last_error"]
+
+
 def test_assinatura_e_backoff():
     assert notify.sign("k", b"{}") == "sha256=" + hmac.new(b"k", b"{}", hashlib.sha256).hexdigest()
     assert [notify.backoff(n).total_seconds() for n in (1, 2, 3, 4)] == [30, 60, 120, 240]

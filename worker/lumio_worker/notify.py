@@ -194,6 +194,40 @@ Você recebe este aviso pelo canal "{escape(n["channel_name"])}". Para mudar o q
 </td></tr></table></body></html>"""
 
 
+def html_reset(name: str, tenant: str, url: str) -> str:
+    """E-mail de redefinição de senha, no mesmo visual dos alertas."""
+    return f"""<!doctype html>
+<html lang="pt-BR"><body style="margin:0;padding:24px;background:#f1f5f9;font-family:Segoe UI,Helvetica,Arial,sans-serif">
+<table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0">
+<tr><td style="background:{TEST_COLOR};height:6px"></td></tr>
+<tr><td style="padding:24px 28px;font-size:14px;color:#0f172a;line-height:1.55">
+<p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#1d4ed8">Lumio</p>
+<p style="margin:0 0 20px;font-size:12px;color:#64748b">Monitoramento de redes GPON · {escape(tenant)}</p>
+<h1 style="margin:0 0 12px;font-size:18px">Redefinição de senha</h1>
+<p style="margin:0 0 8px">Olá, {escape(name)}. Recebemos um pedido para redefinir a sua senha.</p>
+<p style="margin:0">O link vale por <strong>1 hora</strong> e só funciona uma vez.</p>
+<p style="margin:24px 0"><a href="{escape(url)}" style="background:#1d4ed8;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;display:inline-block">Criar senha nova</a></p>
+<p style="margin:0;font-size:12px;color:#64748b">Se o botão não abrir, copie este endereço:<br><span style="word-break:break-all">{escape(url)}</span></p>
+</td></tr>
+<tr><td style="padding:14px 28px;background:#f8fafc;font-size:12px;color:#94a3b8">
+Se não foi você, ignore este e-mail: a sua senha continua a mesma.
+</td></tr></table></body></html>"""
+
+
+# Pedidos de redefinição ainda não enviados. "attempts" sobe ao pegar o pedido,
+# então dois notificadores não mandam o mesmo e-mail.
+RESET_DUE_SQL = """
+    UPDATE password_resets r SET attempts = r.attempts + 1
+    FROM users u JOIN tenants t ON t.id = u.tenant_id
+    WHERE u.id = r.user_id AND r.id IN (
+        SELECT id FROM password_resets
+        WHERE sent_at IS NULL AND token_enc IS NOT NULL AND used_at IS NULL AND expires_at > now()
+          AND (attempts = 0 OR last_error IS NOT NULL)
+        ORDER BY created_at LIMIT $1 FOR UPDATE SKIP LOCKED)
+    RETURNING r.id, r.token_enc, r.attempts, u.email, u.name, t.name AS tenant_name
+"""
+
+
 DUE_SQL = """
     UPDATE notifications SET status = 'sending', attempts = attempts + 1
     WHERE id IN (SELECT id FROM notifications WHERE status = 'pending' AND next_attempt_at <= now()
@@ -240,7 +274,35 @@ class Notifier:
         """Envia o que estiver vencido. Devolve quantas entregas tentou."""
         ids = [r["id"] for r in await self.pool.fetch(DUE_SQL, BATCH)]
         await asyncio.gather(*(self._deliver(i) for i in ids))
-        return len(ids)
+        resets = await self.pool.fetch(RESET_DUE_SQL, BATCH)
+        await asyncio.gather(*(self._send_reset(r) for r in resets))
+        return len(ids) + len(resets)
+
+    async def _send_reset(self, r: asyncpg.Record) -> None:
+        """E-mail de "esqueci minha senha". Enviado, a cópia cifrada do token é apagada."""
+        try:
+            if not self.public_url:
+                raise PermanentError("LUMIO_PUBLIC_URL não definida: não há endereço para o link")
+            token = self.fernet.decrypt(r["token_enc"].encode()).decode()
+            url = f"{self.public_url}/redefinir-senha?token={token}"
+            subject = "[Lumio] Redefinição de senha"
+            text = (f"Olá, {r['name']}.\n"
+                    f"Recebemos um pedido para redefinir a sua senha na Lumio ({r['tenant_name']}).\n"
+                    f"Para criar uma senha nova, abra o link abaixo. Ele vale por 1 hora e só funciona uma vez.\n\n"
+                    f"{url}\n\n"
+                    "Se não foi você, ignore este e-mail: a sua senha continua a mesma.")
+            await self._email(r["email"], subject, text, html_reset(r["name"], r["tenant_name"], url))
+        except Exception as e:  # noqa: BLE001
+            permanent = isinstance(e, PermanentError) or r["attempts"] >= 5
+            await self.pool.execute(
+                "UPDATE password_resets SET last_error = $2, token_enc = CASE WHEN $3 THEN NULL ELSE token_enc END "
+                "WHERE id = $1", r["id"], str(e)[:500], permanent)
+            log.warning("e-mail de redefinição de senha falhou (tentativa %d): %s", r["attempts"], e)
+        else:
+            await self.pool.execute(
+                "UPDATE password_resets SET sent_at = now(), token_enc = NULL, last_error = NULL WHERE id = $1", r["id"])
+            self.sent += 1
+            log.info("enviado link de redefinição de senha")
 
     async def run(self) -> None:
         await self.recover()
