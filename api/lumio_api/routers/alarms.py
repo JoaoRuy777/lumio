@@ -24,7 +24,11 @@ router = APIRouter(prefix="/alarms", tags=["alarmes"])
 ALARM_SELECT = """
     SELECT a.*, o.name AS olt_name, p.name AS pon, n.onu_index, n.serial AS onu_serial,
            (SELECT count(*) FROM alarms c WHERE c.parent_id = a.id) AS children,
-           u.name AS acknowledged_by_name, ua.name AS assigned_to_name, uc.name AS work_closed_by_name
+           u.name AS acknowledged_by_name, ua.name AS assigned_to_name, uc.name AS work_closed_by_name,
+           cu.name AS customer_name,
+           (SELECT count(*) FROM alarms c JOIN onus cn ON cn.id = c.onu_id
+              JOIN customers cc ON cc.tenant_id = cn.tenant_id AND cc.onu_serial = cn.serial
+             WHERE c.parent_id = a.id) AS affected_customers
     FROM alarms a
     JOIN olts o ON o.id = a.olt_id
     LEFT JOIN pon_ports p ON p.id = a.pon_id
@@ -32,6 +36,7 @@ ALARM_SELECT = """
     LEFT JOIN users u ON u.id = a.acknowledged_by
     LEFT JOIN users ua ON ua.id = a.assigned_to
     LEFT JOIN users uc ON uc.id = a.work_closed_by
+    LEFT JOIN customers cu ON cu.tenant_id = a.tenant_id AND cu.onu_serial = n.serial
 """
 
 # Mais grave primeiro

@@ -179,7 +179,9 @@ No painel, cadastre as OLTs simuladas com endereço `simulator`, portas `16101` 
 enxerga o simulador, então a OLT é salva com "sem resposta" e as ONUs
 aparecem na primeira coleta (até 1 minuto). Falhas para a demonstração:
 `http://localhost:8080/docs` → `POST /demo/{caso}` (`criticos` provoca todos os tipos de alarme;
-`normalizar` volta ao normal); e-mails:
+`normalizar` volta ao normal; `sinal-piorando` mostra a manutenção preventiva depois
+de ~6 leituras de potência). Clientes fictícios para o mapa: importe
+`docs/demo/clientes-marilia.csv` em **Clientes**. E-mails:
 `http://localhost:8025`.
 
 **E-mails de verdade (Gmail).** Sem SMTP, os alertas ficam no Mailpit. Para

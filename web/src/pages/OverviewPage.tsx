@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { api, type OltList, type Overview, type Severity } from "../api";
+import { api, type AtRiskOnu, type OltList, type Overview, type Severity } from "../api";
 import { AlarmTable } from "../components/AlarmTable";
 import { Card, SeverityIcon, StatTile, StatusBadge } from "../components/ui";
-import { RX_LIMIT_DBM, severityLabel } from "../format";
+import { dbm, RX_LIMIT_DBM, severityLabel } from "../format";
 
 const SEVERITIES: Severity[] = ["critical", "major", "minor", "warning"];
 const POLL_MS = 30_000; // reserva caso o tempo real caia
@@ -11,6 +11,7 @@ const POLL_MS = 30_000; // reserva caso o tempo real caia
 export function OverviewPage() {
   const ov = useQuery({ queryKey: ["overview"], queryFn: () => api<Overview>("/overview"), refetchInterval: POLL_MS });
   const olts = useQuery({ queryKey: ["olts"], queryFn: () => api<OltList>("/olts"), refetchInterval: POLL_MS });
+  const risk = useQuery({ queryKey: ["at-risk"], queryFn: () => api<AtRiskOnu[]>("/onus-at-risk"), refetchInterval: 60_000 });
 
   if (ov.isPending) return <p className="text-sm text-slate-500">Carregando…</p>;
   if (ov.error) return <p role="alert" className="text-sm text-red-700">Erro ao carregar: {ov.error.message}</p>;
@@ -57,7 +58,13 @@ export function OverviewPage() {
         <StatTile
           label={`Sinal abaixo de ${RX_LIMIT_DBM} dBm`}
           value={d.rx_low}
-          detail={d.rx_low > 0 ? <Link className="hover:underline" to={`/onus?rx_below=${RX_LIMIT_DBM}`}>ver ONUs</Link> : "nenhuma ONU"}
+          tone={d.rx_trend > 0 ? "warn" : "neutral"}
+          detail={
+            <>
+              {d.rx_low > 0 ? <Link className="hover:underline" to={`/onus?rx_below=${RX_LIMIT_DBM}`}>ver ONUs</Link> : "nenhuma ONU"}
+              {d.rx_trend > 0 && <span className="block text-amber-700">{d.rx_trend} com sinal piorando</span>}
+            </>
+          }
         />
         <StatTile
           label="OLTs coletando"
@@ -77,6 +84,26 @@ export function OverviewPage() {
       >
         <AlarmTable alarms={d.recent_alarms} compact />
       </Card>
+
+      {!!risk.data?.length && (
+        <Card title="Sinal piorando: agir antes de o cliente cair">
+          <ul className="divide-y divide-slate-100 text-sm">
+            {risk.data.slice(0, 6).map((r) => (
+              <li key={r.onu_id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+                <Link to={`/onus/${r.onu_id}`} className="hover:underline">
+                  <span className="font-mono text-xs">{r.serial}</span> · {r.olt_name} · PON {r.pon} · ONU {r.onu_index}
+                </Link>
+                <span className="tabular-nums text-slate-600">
+                  {dbm(r.rx_dbm)} · {r.slope_db_day.toLocaleString("pt-BR")} dB/dia ·{" "}
+                  <b className="text-amber-700">
+                    limite em ~{r.days_to_limit < 1 ? `${Math.max(1, Math.round(r.days_to_limit * 24))} h` : `${Math.round(r.days_to_limit)} dias`}
+                  </b>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card title="OLTs">
         <ul className="divide-y divide-slate-100">

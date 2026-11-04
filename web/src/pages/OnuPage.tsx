@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
-import { api, query, type Alarm, type Onu, type Page, type Readings } from "../api";
+import { api, query, type AtRiskOnu, type Alarm, type Customer, type Onu, type Page, type Readings } from "../api";
 import { AlarmTable } from "../components/AlarmTable";
 import { RxChart } from "../components/RxChart";
 import { Card } from "../components/ui";
@@ -29,6 +29,10 @@ export function OnuPage() {
     queryFn: () => api<Page<Alarm>>(`/alarms${query({ onu_id: id, status: "all", limit: 20 })}`),
   });
 
+  const customer = useQuery({ queryKey: ["customers", "onu", id], queryFn: () => api<Customer | null>(`/onus/${id}/customer`) });
+  const risk = useQuery({ queryKey: ["at-risk"], queryFn: () => api<AtRiskOnu[]>("/onus-at-risk"), refetchInterval: 60_000 });
+  const trend = risk.data?.find((r) => r.onu_id === id);
+
   if (onu.isPending) return <p className="text-sm text-slate-500">Carregando…</p>;
   if (onu.error) return <p role="alert" className="text-sm text-red-700">ONU não encontrada.</p>;
   const o = onu.data;
@@ -47,6 +51,25 @@ export function OnuPage() {
           · PON {o.pon} · ONU {o.onu_index}
         </p>
       </div>
+
+      {customer.data && (
+        <section className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-slate-200 bg-surface px-4 py-3 text-sm shadow-sm" aria-label="Cliente">
+          <p className="font-medium">{customer.data.name}</p>
+          {customer.data.phone && <p className="text-slate-600">{customer.data.phone}</p>}
+          <p className="text-slate-600">{[customer.data.address, customer.data.district].filter(Boolean).join(" · ")}</p>
+          {customer.data.plan && <p className="text-slate-500">Plano {customer.data.plan}</p>}
+          <Link to="/mapa" className="ml-auto text-xs font-medium text-brand-600 hover:underline">
+            ver no mapa
+          </Link>
+        </section>
+      )}
+      {trend && (
+        <p role="status" className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <b>Sinal piorando:</b> {trend.slope_db_day.toLocaleString("pt-BR")} dB por dia nas últimas leituras. Nesse ritmo passa do
+          limite de alarme (-27 dBm) em {trend.days_to_limit < 1 ? `cerca de ${Math.max(1, Math.round(trend.days_to_limit * 24))} h` : `cerca de ${Math.round(trend.days_to_limit)} dias`}.
+          Vale verificar conectores e o cabo do cliente antes de ele cair.
+        </p>
+      )}
 
       <dl className="grid gap-4 rounded-xl border border-slate-200 bg-surface p-4 shadow-sm sm:grid-cols-4">
         <div>

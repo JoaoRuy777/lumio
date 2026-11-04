@@ -64,6 +64,7 @@ export function Children({ parent }: { parent: Alarm }) {
             <span>ONU {c.onu_index}</span>
           )}
           <span className="font-mono text-xs text-slate-500">{c.onu_serial}</span>
+          {c.customer_name && <span className="truncate text-xs text-slate-600">{c.customer_name}</span>}
           {c.status === "cleared" && <span className="text-xs text-emerald-700">voltou</span>}
         </li>
       ))}

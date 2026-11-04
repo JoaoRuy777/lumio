@@ -17,6 +17,10 @@ import { OnusPage } from "./pages/OnusPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { CustomersPage } from "./pages/CustomersPage";
+// mapa e modo TV trazem o Leaflet: carregam só quando abrir
+const MapPage = lazy(() => import("./pages/MapPage").then((m) => ({ default: m.MapPage })));
+const TvPage = lazy(() => import("./pages/TvPage").then((m) => ({ default: m.TvPage })));
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { UsersPage } from "./pages/UsersPage";
 
@@ -52,11 +56,28 @@ export function App() {
 export function AppRoutes({ onLogout }: { onLogout: () => void }) {
   return (
     <Routes>
+      <Route
+        path="tv"
+        element={
+          <Suspense fallback={<p className="p-6 text-sm text-slate-500">Carregando…</p>}>
+            <MeGate>{(me) => <TvPage me={me} />}</MeGate>
+          </Suspense>
+        }
+      />
       <Route element={<Shell onLogout={onLogout} />}>
         <Route index element={<OverviewPage />} />
         <Route path="olts" element={<MeGate>{(me) => <OltsPage me={me} />}</MeGate>} />
         <Route path="olts/:id" element={<OltPage />} />
         <Route path="onus" element={<OnusPage />} />
+        <Route
+          path="mapa"
+          element={
+            <Suspense fallback={<p className="text-sm text-slate-500">Carregando mapa…</p>}>
+              <MapPage />
+            </Suspense>
+          }
+        />
+        <Route path="clientes" element={<MeGate>{(me) => <CustomersPage me={me} />}</MeGate>} />
         <Route
           path="onus/:id"
           element={
@@ -102,6 +123,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             </div>
             <div className="flex items-center gap-4 text-sm">
               <LiveIndicator />
+              <NavLink to="/tv" className="hidden rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 md:inline" title="Tela de parede do NOC">
+                Modo TV
+              </NavLink>
               <ThemeToggle />
               {me && (
                 <NavLink to="/conta" className="max-w-40 truncate text-slate-600 hover:text-slate-900 hover:underline" title="Minha conta">
@@ -130,6 +154,12 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             </NavLink>
             <NavLink to="/onus" className={navClass}>
               ONUs
+            </NavLink>
+            <NavLink to="/mapa" className={navClass}>
+              Mapa
+            </NavLink>
+            <NavLink to="/clientes" className={navClass}>
+              Clientes
             </NavLink>
             <NavLink to="/reports" className={navClass}>
               Relatórios

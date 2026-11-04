@@ -61,3 +61,105 @@
 body {
   @apply bg-slate-50 text-slate-800 antialiased;
 }
+
+/* ------------------------------------------------------------------ mapa (Leaflet) */
+.leaflet-container {
+  font: inherit;
+  background: var(--color-slate-100);
+}
+/* modo noturno: mapa do OpenStreetMap escurecido */
+[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.85) saturate(0.6);
+}
+.lumio-olt {
+  position: relative;
+  transform: translate(-9px, -9px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.lumio-olt span {
+  display: block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--color-brand-600);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+}
+.lumio-olt-bad span {
+  background: #dc2626;
+}
+.lumio-olt b {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-slate-900);
+  background: var(--color-surface);
+  padding: 1px 6px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+.lumio-pulse {
+  position: relative;
+  display: block;
+  width: 12px;
+  height: 12px;
+  transform: translate(-6px, -6px);
+  border-radius: 9999px;
+  background: #dc2626;
+  border: 2px solid #fff;
+}
+.lumio-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  border: 2px solid #dc2626;
+  animation: lumio-pulse 1.6s ease-out infinite;
+}
+@keyframes lumio-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lumio-pulse::after {
+    animation: none;
+  }
+}
+.leaflet-container .leaflet-popup-content-wrapper,
+.leaflet-container .leaflet-popup-tip {
+  background: var(--color-surface);
+  color: var(--color-slate-800);
+}
+.lumio-popup p {
+  margin: 2px 0;
+  font-size: 13px;
+}
+.lumio-popup-title {
+  font-weight: 600;
+  font-size: 14px !important;
+}
+.lumio-popup-state {
+  font-weight: 600;
+}
+.lumio-popup-muted {
+  color: var(--color-slate-500);
+  font-size: 12px !important;
+}
+.lumio-popup-links {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px !important;
+}
+.leaflet-container .lumio-popup-links a {
+  color: var(--color-brand-600);
+  font-weight: 600;
+}

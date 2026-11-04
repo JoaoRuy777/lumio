@@ -46,7 +46,7 @@ export function parseSse(buffer: string): { events: { event: string; data: strin
 }
 
 // Consultas que cada tipo de aviso pode ter mudado
-const AFFECTED = [["overview"], ["alarms"], ["olts"], ["onus"], ["pons"], ["onu"]];
+const AFFECTED = [["overview"], ["alarms"], ["olts"], ["onus"], ["pons"], ["onu"], ["map"], ["customers"], ["at-risk"]];
 
 export function LiveProvider({ children, retryMs = 1000 }: { children: ReactNode; retryMs?: number }) {
   const qc = useQueryClient();
