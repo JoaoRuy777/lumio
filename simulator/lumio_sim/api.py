@@ -9,6 +9,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from .demo import CASES
 from .model import SCENARIOS, Network
 from .snmp_agent import TrapSender
 
@@ -77,6 +78,21 @@ def create_app(network: Network, traps: TrapSender) -> FastAPI:
             raise HTTPException(400, str(e))
         await traps.send(events)
         return {"scenario": req.type, "traps": [asdict(e) for e in events]}
+
+    @app.post("/demo/{caso}", summary="Casos prontos da demonstração (rede-demo.yaml): criticos, normalizar ou um caso")
+    async def demo(caso: Literal[("criticos", "normalizar", *CASES)]):  # type: ignore[valid-type]
+        if caso == "normalizar":
+            events = network.run("reset")
+            await traps.send(events)
+            return {"caso": caso, "aplicados": ["rede normalizada"]}
+        names = list(CASES) if caso == "criticos" else [caso]
+        try:
+            for name in names:
+                for s in CASES[name][1]:
+                    await traps.send(network.run(s["type"], **{k: v for k, v in s.items() if k != "type"}))
+        except LookupError as e:
+            raise HTTPException(400, f"{e} (este caso é da rede-demo.yaml)")
+        return {"caso": caso, "aplicados": [CASES[n][0] for n in names]}
 
     @app.post("/tick")
     async def tick(req: TickRequest):

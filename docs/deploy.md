@@ -174,11 +174,12 @@ mesmo Redis da Vercel e lê as OLTs da API da Vercel:
 docker compose --env-file .env.lumio.local -f docker-compose.coleta.yml up -d --build
 ```
 
-No painel, cadastre as OLTs simuladas com endereço `simulator`, portas
-`16101` e `16102`, community `public`. A descoberta roda na Vercel, que não
+No painel, cadastre as OLTs simuladas com endereço `simulator`, portas `16101` a
+`16105` (`simulator/config/rede-demo.yaml`), community `public`. A descoberta roda na Vercel, que não
 enxerga o simulador, então a OLT é salva com "sem resposta" e as ONUs
 aparecem na primeira coleta (até 1 minuto). Falhas para a demonstração:
-`http://localhost:8080/docs` (API de cenários do simulador); e-mails:
+`http://localhost:8080/docs` → `POST /demo/{caso}` (`criticos` provoca todos os tipos de alarme;
+`normalizar` volta ao normal); e-mails:
 `http://localhost:8025`.
 
 ## Banco no Neon

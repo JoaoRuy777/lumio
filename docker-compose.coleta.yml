@@ -13,7 +13,7 @@
 #   REDIS_URL                  o mesmo cadastrado na Vercel (Upstash, rediss://)
 #
 # No painel, cadastre as OLTs simuladas com endereço "simulator", portas
-# 16101 e 16102, community "public". O "Testar conexão" e a descoberta rodam
+# 16101 a 16105 (rede-demo.yaml), community "public". O "Testar conexão" e a descoberta rodam
 # na Vercel, que não enxerga o simulador: a OLT é salva assim mesmo e as ONUs
 # aparecem com a primeira coleta (até 1 minuto).
 #
@@ -29,7 +29,7 @@ services:
   simulator:
     build: ./simulator
     restart: unless-stopped
-    command: ["python", "-m", "lumio_sim", "--config", "config/rede-exemplo.yaml", "--trap-target", "collector:1162"]
+    command: ["python", "-m", "lumio_sim", "--config", "config/rede-demo.yaml", "--trap-target", "collector:1162"]
     ports:
       - "127.0.0.1:8080:8080"     # cenários de falha, só nesta máquina
 
