@@ -106,3 +106,22 @@ async def test_toda_tabela_com_tenant_tem_rls(pool):
         "WHERE n.nspname = 'public' AND c.relkind = 'r' AND col.column_name = 'tenant_id'")
     assert rows
     assert [r["relname"] for r in rows if not r["relrowsecurity"]] == []
+
+
+async def test_rotas_do_painel_nao_vazam_dados(client, pool, two_tenants):
+    """Sprint 4: visão geral, PONs, ONUs, histórico e alarmes também isolados."""
+    b, olt_a = two_tenants["b"], two_tenants["olt_a"]
+    onu_a = await pool.fetchval("SELECT id FROM onus LIMIT 1")
+    alarm_a = await pool.fetchval("SELECT id FROM alarms LIMIT 1")
+
+    ov = (await client.get("/api/overview", headers=b)).json()
+    assert ov["olts"]["total"] == 0 and ov["onus"]["total"] == 0 and ov["alarms"]["total"] == 0
+    assert (await client.get("/api/onus", headers=b)).json() == {"items": [], "total": 0}
+    assert (await client.get("/api/alarms", headers=b, params={"status": "all"})).json() == {"items": [], "total": 0}
+    for path in (f"/api/olts/{olt_a}/pons", f"/api/onus/{onu_a}", f"/api/onus/{onu_a}/readings",
+                 f"/api/alarms/{alarm_a}"):
+        assert (await client.get(path, headers=b)).status_code == 404, path
+    assert (await client.post(f"/api/alarms/{alarm_a}/ack", headers=b)).status_code == 404
+    # filtrar pela OLT do outro também não traz nada
+    assert (await client.get("/api/onus", headers=b, params={"olt_id": str(olt_a)})).json()["total"] == 0
+    assert await pool.fetchval("SELECT status FROM alarms WHERE id = $1", alarm_a) == "active"
