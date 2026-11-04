@@ -1,0 +1,36 @@
+# Rede da demonstração (docker-compose.coleta.yml): 5 OLTs Huawei, 320 ONUs.
+# Cadastre no painel com endereço "simulator", community "public" e as portas
+# abaixo. Casos críticos prontos: python -m lumio_sim.demo (veja o README).
+seed: 42
+base_port: 16101
+
+olts:
+  - name: olt-centro          # 16101
+    model: MA5800-X7
+    slots: [1]
+    ports_per_slot: 4
+    onus_per_port: 16
+
+  - name: olt-zona-norte      # 16102
+    model: MA5800-X2
+    slots: [1]
+    ports_per_slot: 2
+    onus_per_port: 32
+
+  - name: olt-zona-sul        # 16103
+    model: MA5800-X7
+    slots: [1]
+    ports_per_slot: 4
+    onus_per_port: 16
+
+  - name: olt-industrial      # 16104
+    model: MA5800-X2
+    slots: [1]
+    ports_per_slot: 2
+    onus_per_port: 16
+
+  - name: olt-rural           # 16105
+    model: MA5800-X2
+    slots: [1]
+    ports_per_slot: 2
+    onus_per_port: 16
