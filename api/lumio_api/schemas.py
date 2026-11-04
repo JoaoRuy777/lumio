@@ -34,7 +34,7 @@ class PlanUsage(BaseModel):
 
 
 class UserIn(BaseModel):
-    name: str = Field(min_length=2, max_length=120, examples=["Prof. Avaliador"])
+    name: str = Field(min_length=2, max_length=120, examples=["Maria Souza"])
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
     role: Literal["admin", "operator"] = "operator"

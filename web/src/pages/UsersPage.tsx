@@ -32,10 +32,10 @@ function UserForm({ onCreated, onCancel }: { onCreated: (u: AppUser) => void; on
     <form onSubmit={submit} className="space-y-4 p-4" aria-label="Novo usuário">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Nome">
-          <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required minLength={2} placeholder="Prof. Avaliador" />
+          <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required minLength={2} placeholder="Maria Souza" />
         </Field>
         <Field label="E-mail" hint="é o login do usuário">
-          <input className={inputClass} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required placeholder="avaliador@unimar.br" />
+          <input className={inputClass} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required placeholder="maria@seuprovedor.com.br" />
         </Field>
         <Field label="Senha inicial" hint="mínimo de 8 caracteres; passe para a pessoa por um canal seguro">
           <input className={inputClass} type="text" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} />

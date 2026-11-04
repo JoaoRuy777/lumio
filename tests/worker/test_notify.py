@@ -186,8 +186,12 @@ async def test_envia_email(processor, pool, smtp):
     # assunto com acento vem codificado (RFC 2047): lê como o cliente de e-mail leria
     parsed = message_from_bytes(msg.content, policy=policy.default)
     assert parsed["Subject"] == "[Lumio] CRÍTICO: OLT inacessível — olt-1"
-    text = parsed.get_content()
+    text = parsed.get_body(preferencelist=("plain",)).get_content()
     assert "Severidade: crítico" in text and "https://painel.lumio.test/alarms" in text
+    # versão HTML para os clientes de e-mail que mostram HTML: mesmo conteúdo, com botão para o painel
+    html = parsed.get_body(preferencelist=("html",)).get_content()
+    assert "CRÍTICO" in html and "OLT inacessível — olt-1" in html and 'href="https://painel.lumio.test/alarms"' in html
+    assert "<script" not in html.lower()
     assert (await queue(pool))[0]["status"] == "sent"
 
 
