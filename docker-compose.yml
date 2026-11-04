@@ -99,6 +99,32 @@ services:
       redis: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
 
+  # Envia as notificações da fila (e-mail e webhook). Mesma imagem do worker.
+  notifier:
+    build: ./worker
+    command: ["python", "-m", "lumio_worker", "notify"]
+    environment:
+      DATABASE_URL: postgresql://lumio_system:${LUMIO_SYSTEM_DB_PASSWORD:-lumio-system-dev}@postgres:5432/${POSTGRES_DB:-lumio}
+      LUMIO_SECRET_KEY: ${LUMIO_SECRET_KEY:-FzmoxWgkS_PkkB-SvoKahxsim_yz5CR0b6dZxP03CYU=}
+      LUMIO_PUBLIC_URL: ${LUMIO_PUBLIC_URL:-http://localhost:3000}
+      # Desenvolvimento: e-mails vão para o Mailpit (veja em http://localhost:8025)
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Lumio <alertas@lumio.local>}
+      SMTP_SECURITY: ${SMTP_SECURITY:-none}
+      # só em desenvolvimento: deixa webhook apontar para a rede local
+      LUMIO_WEBHOOK_ALLOW_PRIVATE: ${LUMIO_WEBHOOK_ALLOW_PRIVATE:-true}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  # Servidor de e-mail falso para desenvolvimento: caixa de entrada em http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.33.0
+    ports:
+      - "8025:8025"
+
   # Suíte de testes (não sobe no "up"): docker compose run --rm tests
   tests:
     build: { context: ., dockerfile: Dockerfile.test }
