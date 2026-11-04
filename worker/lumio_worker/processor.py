@@ -81,6 +81,17 @@ class Processor:
                     olt_id, tenant_id = await self._olt(conn, record["olt"]), self.tenant_id
                 ctx = Ctx(conn, tenant_id, olt_id, datetime.fromisoformat(record["ts"]), record.get("source", "poll"))
                 await handler(ctx, record)
+        except asyncpg.ForeignKeyViolationError:
+            self._forget_cache()
+            # A OLT foi excluída com leituras dela ainda na fila (o coletor só
+            # relê o cadastro a cada 30 s): descarta. Outro motivo é erro de verdade.
+            if record.get("olt_id"):
+                async with self.pool.acquire() as conn:
+                    if not await conn.fetchval("SELECT EXISTS (SELECT 1 FROM olts WHERE id = $1)",
+                                               UUID(record["olt_id"])):
+                        log.info("OLT %s excluída durante o processamento; registro ignorado", record["olt_id"])
+                        return
+            raise
         except BaseException:
             # ids em cache podem ter vindo da transação desfeita
             self._forget_cache()

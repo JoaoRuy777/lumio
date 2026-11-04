@@ -173,3 +173,18 @@ async def test_varios_sinais_normalizam_na_mesma_leitura(processor, pool):
     assert len(await alarms(pool, kind="onu_rx_low", status="cleared")) == 5
     assert await pool.fetchval("SELECT count(*) FROM optical_readings") == 10
     assert await pool.fetchval("SELECT count(*) FROM onus WHERE rx_dbm = -22.0") == 5
+
+
+async def test_leitura_de_olt_excluida_e_descartada(processor, pool):
+    """OLT excluída com leituras ainda na fila: descarta, sem erro (nem dead letter)."""
+    await processor.handle(rec("olt_health", cpu=20, temperature=40.0, uptime_s=1.0))
+    olt_id = await pool.fetchval("SELECT id FROM olts")
+
+    def by_id():
+        return {**rec("olt_health", cpu=21, temperature=40.0, uptime_s=2.0), "olt_id": str(olt_id)}
+
+    await processor.handle(by_id())                       # põe o tenant da OLT no cache
+    await pool.execute("DELETE FROM olts WHERE id = $1", olt_id)
+    await processor.handle(by_id())                       # cache velho: FK falha e é descartado
+    await processor.handle(by_id())                       # cache limpo: ignorado direto
+    assert await pool.fetchval("SELECT count(*) FROM olt_health_readings") == 0
