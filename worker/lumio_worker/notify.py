@@ -119,6 +119,11 @@ def describe(n: asyncpg.Record) -> tuple[str, str, dict]:
     lines = [f"{kind} em {where}", f"Severidade: {SEVERITY_LABEL[n['severity']].lower()}", f"Início: {started} (horário de Brasília)"]
     if n["children"]:
         lines.append(f"ONUs afetadas: {n['children']}")
+    if n.get("affected_customers"):
+        lines.append(f"Clientes afetados: {n['affected_customers']}")
+    if n.get("customer_name"):
+        phone = f" ({n['customer_phone']})" if n.get("customer_phone") else ""
+        lines.append(f"Cliente: {n['customer_name']}{phone}")
     if n["onu_serial"]:
         lines.append(f"Serial da ONU: {n['onu_serial']}")
     if "rx_dbm" in details:
@@ -239,7 +244,11 @@ DETAIL_SQL = """
     SELECT n.id, n.event, n.attempts, n.alarm_id, c.name AS channel_name, c.type, c.target, c.secret_enc,
            t.name AS tenant_name, a.kind, a.severity, a.status AS status_alarm, a.parent_id, a.details,
            a.event_ts, a.cleared_at, o.name AS olt_name, p.name AS pon, u.onu_index, u.serial AS onu_serial,
-           (SELECT count(*) FROM alarms k WHERE k.parent_id = a.id) AS children
+           (SELECT count(*) FROM alarms k WHERE k.parent_id = a.id) AS children,
+           cu.name AS customer_name, cu.phone AS customer_phone,
+           (SELECT count(*) FROM alarms k JOIN onus kn ON kn.id = k.onu_id
+              JOIN customers kc ON kc.tenant_id = kn.tenant_id AND kc.onu_serial = kn.serial
+             WHERE k.parent_id = a.id) AS affected_customers
     FROM notifications n
     JOIN notification_channels c ON c.id = n.channel_id
     JOIN tenants t ON t.id = n.tenant_id
@@ -247,6 +256,7 @@ DETAIL_SQL = """
     LEFT JOIN olts o ON o.id = a.olt_id
     LEFT JOIN pon_ports p ON p.id = a.pon_id
     LEFT JOIN onus u ON u.id = a.onu_id
+    LEFT JOIN customers cu ON cu.tenant_id = u.tenant_id AND cu.onu_serial = u.serial
     WHERE n.id = $1
 """
 

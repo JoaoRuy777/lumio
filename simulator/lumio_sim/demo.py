@@ -30,6 +30,10 @@ CASES: dict[str, tuple[str, list[dict]]] = {
                      [{"type": "onu_down", "olt": "olt-centro", "pon": "0/1/0", "onu": 3, "cause": "dying_gasp"},
                       {"type": "onu_down", "olt": "olt-centro", "pon": "0/1/2", "onu": 7, "cause": "los"},
                       {"type": "onu_down", "olt": "olt-centro", "pon": "0/1/3", "onu": 12, "cause": "los"}]),
+    "sinal-piorando": ("PREVENÇÃO: sinal de 3 ONUs da olt-zona-norte caindo devagar, sem chegar ao limite "
+                       "(aparece em \"Sinal piorando\" depois de ~6 leituras de potência)",
+                       [{"type": "degrade", "olt": "olt-zona-norte", "pon": "0/1/1", "onu": onu,
+                         "rate_db_per_min": 0.02, "target_dbm": -26.3} for onu in (10, 11, 12)]),
     "sinal-baixo": ("AVISO: sinal de 4 ONUs da olt-zona-norte caindo até -31 dBm (alarme ao passar de -27 dBm, ~2 min)",
                     [{"type": "degrade", "olt": "olt-zona-norte", "pon": pon, "onu": onu,
                       "rate_db_per_min": 4.0, "target_dbm": -31.0}
