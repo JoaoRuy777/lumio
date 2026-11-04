@@ -1,5 +1,6 @@
-import { cloneElement, useId, type ButtonHTMLAttributes, type ReactElement } from "react";
-import type { CollectionStatus } from "../api";
+import { cloneElement, useId, type ButtonHTMLAttributes, type ReactElement, type ReactNode } from "react";
+import type { AlarmStatus, CollectionStatus, Severity } from "../api";
+import { severityLabel } from "../format";
 
 export const inputClass =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-xs outline-none " +
@@ -85,3 +86,99 @@ export function PlanUsageBar({ used, limit }: { used: number; limit: number }) {
     </div>
   );
 }
+
+// ------------------------------------------------------------------ painel (sprint 4)
+
+// Cores de status reservadas (nunca usadas para séries de gráfico). A forma do
+// ícone também muda por severidade: a informação não depende só da cor.
+const severityStyle: Record<Severity, { color: string; shape: ReactElement }> = {
+  critical: { color: "#d03b3b", shape: <polygon points="4,0 8,0 12,4 12,8 8,12 4,12 0,8 0,4" /> },
+  major: { color: "#ec835a", shape: <polygon points="6,0 12,12 0,12" /> },
+  minor: { color: "#fab219", shape: <polygon points="6,0 12,6 6,12 0,6" /> },
+  warning: { color: "#64748b", shape: <circle cx="6" cy="6" r="5.5" /> },
+};
+
+export function SeverityIcon({ severity, className = "size-3" }: { severity: Severity; className?: string }) {
+  const { color, shape } = severityStyle[severity];
+  return (
+    <svg viewBox="0 0 12 12" className={`shrink-0 ${className}`} fill={color} aria-hidden>
+      {shape}
+    </svg>
+  );
+}
+
+export function SeverityBadge({ severity }: { severity: Severity }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+      <SeverityIcon severity={severity} />
+      {severityLabel[severity]}
+    </span>
+  );
+}
+
+export function AlarmStatusBadge({ status }: { status: AlarmStatus }) {
+  const [label, style] = {
+    active: ["Ativo", "bg-red-50 text-red-700 ring-red-600/20"],
+    acknowledged: ["Reconhecido", "bg-sky-50 text-sky-800 ring-sky-600/20"],
+    cleared: ["Encerrado", "bg-slate-100 text-slate-600 ring-slate-500/20"],
+  }[status];
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${style}`}>{label}</span>;
+}
+
+/** Número de destaque: é o que a visão geral precisa, não um gráfico. */
+export function StatTile({ label, value, detail, tone = "neutral", children }: {
+  label: string;
+  value: ReactNode;
+  detail?: ReactNode;
+  tone?: "neutral" | "bad";
+  children?: ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label={label}>
+      <h2 className="text-sm text-slate-500">{label}</h2>
+      <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${tone === "bad" ? "text-red-700" : "text-slate-900"}`}>
+        {value}
+      </p>
+      {detail && <p className="mt-1 text-sm text-slate-500">{detail}</p>}
+      {children}
+    </section>
+  );
+}
+
+export function Pager({ total, limit, offset, onChange }: { total: number; limit: number; offset: number; onChange: (offset: number) => void }) {
+  if (total <= limit) return null;
+  const page = Math.floor(offset / limit) + 1;
+  const pages = Math.ceil(total / limit);
+  return (
+    <nav className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm" aria-label="Paginação">
+      <span className="text-slate-500">
+        {offset + 1}–{Math.min(offset + limit, total)} de {total}
+      </span>
+      <span className="flex gap-2">
+        <Button variant="secondary" disabled={page <= 1} onClick={() => onChange(offset - limit)}>
+          Anterior
+        </Button>
+        <Button variant="secondary" disabled={page >= pages} onClick={() => onChange(offset + limit)}>
+          Próxima
+        </Button>
+      </span>
+    </nav>
+  );
+}
+
+export function Card({ title, actions, children }: { title?: ReactNode; actions?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      {(title || actions) && (
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
+          {title && <h2 className="font-medium">{title}</h2>}
+          {actions}
+        </header>
+      )}
+      {children}
+    </section>
+  );
+}
+
+export const th = "px-4 py-3 text-left text-xs font-medium tracking-wide text-slate-500 uppercase";
+export const td = "px-4 py-3";

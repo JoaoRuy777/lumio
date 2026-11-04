@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router";
 import { api, type Me, type Olt, type OltList, type OltSaved } from "../api";
 import { OltForm } from "../components/OltForm";
 import { Button, PlanUsageBar, StatusBadge } from "../components/ui";
@@ -124,7 +125,11 @@ export function OltsPage({ me }: { me: Me }) {
             <tbody className="divide-y divide-slate-100">
               {data.items.map((o) => (
                 <tr key={o.id}>
-                  <td className="px-4 py-3 font-medium">{o.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <Link to={`/olts/${o.id}`} className="hover:underline">
+                      {o.name}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-600">
                     {o.host}:{o.snmp_port}
                   </td>

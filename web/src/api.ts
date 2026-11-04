@@ -152,3 +152,90 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+// ------------------------------------------------------------------ painel (sprint 4)
+
+export type Severity = "critical" | "major" | "minor" | "warning";
+export type AlarmStatus = "active" | "acknowledged" | "cleared";
+export type AlarmKind = "pon_fiber_cut" | "onu_offline" | "onu_rx_low" | "olt_unreachable" | "olt_cpu_high";
+
+export interface Alarm {
+  id: string;
+  kind: AlarmKind;
+  severity: Severity;
+  status: AlarmStatus;
+  source: "trap" | "poll";
+  olt_id: string;
+  olt_name: string;
+  pon_id: string | null;
+  pon: string | null;
+  onu_id: string | null;
+  onu_index: number | null;
+  onu_serial: string | null;
+  parent_id: string | null;
+  children: number;
+  occurrences: number;
+  details: Record<string, unknown>;
+  first_seen_at: string;
+  last_seen_at: string;
+  created_at: string;
+  cleared_at: string | null;
+  latency_ms: number | null;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+}
+
+export interface Page<T> {
+  items: T[];
+  total: number;
+}
+
+export interface Overview {
+  olts: Record<"total" | "ok" | "error" | "late" | "pending" | "disabled", number>;
+  onus: Record<"total" | "online" | "offline" | "unknown", number>;
+  rx_low: number;
+  alarms: Record<Severity | "total", number>;
+  recent_alarms: Alarm[];
+}
+
+export interface Pon {
+  id: string;
+  name: string;
+  onus_total: number;
+  onus_online: number;
+  rx_avg: number | null;
+  rx_min: number | null;
+  active_alarms: number;
+}
+
+export interface Onu {
+  id: string;
+  olt_id: string;
+  olt_name: string;
+  pon_id: string;
+  pon: string;
+  onu_index: number;
+  serial: string | null;
+  online: boolean | null;
+  rx_dbm: number | null;
+  tx_dbm: number | null;
+  last_change_at: string | null;
+  last_seen_at: string | null;
+  active_alarms: AlarmKind[];
+}
+
+export interface Readings {
+  items: { ts: string; rx_dbm: number | null; tx_dbm: number | null }[];
+  bucket_s: number;
+}
+
+/** Monta "?a=1&b=2" ignorando vazios; arrays viram parâmetros repetidos. */
+export function query(params: Record<string, string | number | boolean | string[] | null | undefined>): string {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === "") continue;
+    for (const item of Array.isArray(v) ? v : [v]) sp.append(k, String(item));
+  }
+  const s = sp.toString();
+  return s ? `?${s}` : "";
+}
