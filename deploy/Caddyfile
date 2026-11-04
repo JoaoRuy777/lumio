@@ -1,0 +1,22 @@
+# HTTPS automático (Let's Encrypt) na frente do painel. O domínio e o e-mail
+# vêm do .env (LUMIO_DOMAIN e ACME_EMAIL).
+{
+	email {$ACME_EMAIL}
+}
+
+{$LUMIO_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# o nginx do painel serve o React e repassa /api (inclusive o SSE)
+	reverse_proxy web:80 {
+		flush_interval -1
+	}
+}

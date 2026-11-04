@@ -13,3 +13,6 @@ build/
 # Playwright
 web/test-results/
 web/playwright-report/
+
+# backups do banco (deploy/backup.sh)
+backups/
