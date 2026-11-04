@@ -6,6 +6,7 @@ import { api, LOGOUT_EVENT, session, type Me, type Overview } from "./api";
 import { LiveIndicator, LiveProvider } from "./live";
 import { ThemeToggle } from "./theme";
 import { AlarmsPage } from "./pages/AlarmsPage";
+import { AccountPage } from "./pages/AccountPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OltPage } from "./pages/OltPage";
 import { OltsPage } from "./pages/OltsPage";
@@ -15,6 +16,7 @@ import { OnusPage } from "./pages/OnusPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { UsersPage } from "./pages/UsersPage";
 
 export function App() {
@@ -31,6 +33,8 @@ export function App() {
     return () => window.removeEventListener(LOGOUT_EVENT, onLogout);
   }, [qc]);
 
+  // link do e-mail de "esqueci minha senha": abre logado ou não
+  if (window.location.pathname === "/redefinir-senha") return <ResetPasswordPage />;
   if (!loggedIn) return <AuthPage onLogin={() => setLoggedIn(true)} />;
   const logout = () => {
     session.clear();
@@ -64,6 +68,7 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="notifications" element={<MeGate>{(me) => <NotificationsPage me={me} />}</MeGate>} />
         <Route path="users" element={<MeGate>{(me) => <UsersPage me={me} />}</MeGate>} />
+        <Route path="conta" element={<MeGate>{(me) => <AccountPage me={me} />}</MeGate>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
@@ -96,7 +101,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             <div className="flex items-center gap-4 text-sm">
               <LiveIndicator />
               <ThemeToggle />
-              {me && <span className="hidden text-slate-600 sm:inline">{me.name}</span>}
+              {me && (
+                <NavLink to="/conta" className="max-w-40 truncate text-slate-600 hover:text-slate-900 hover:underline" title="Minha conta">
+                  {me.name}
+                </NavLink>
+              )}
               <button className="text-slate-500 hover:text-slate-800" onClick={onLogout}>
                 Sair
               </button>
