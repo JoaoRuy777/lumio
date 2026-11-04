@@ -97,6 +97,8 @@ class OltCreate(SnmpAccess):
     status_interval_s: int = Field(60, ge=30, le=3600)
     optical_interval_s: int = Field(300, ge=60, le=86400)
     enabled: bool = True
+    lat: float | None = Field(None, ge=-90, le=90, description="localização no mapa (opcional)")
+    lon: float | None = Field(None, ge=-180, le=180)
 
 
 class OltUpdate(BaseModel):
@@ -107,6 +109,8 @@ class OltUpdate(BaseModel):
     status_interval_s: int | None = Field(None, ge=30, le=3600)
     optical_interval_s: int | None = Field(None, ge=60, le=86400)
     enabled: bool | None = None
+    lat: float | None = Field(None, ge=-90, le=90)
+    lon: float | None = Field(None, ge=-180, le=180)
 
 
 CollectionStatus = Literal["ok", "error", "pending", "late", "disabled"]
@@ -132,6 +136,8 @@ class OltOut(BaseModel):
     onus_total: int
     onus_online: int
     active_alarms: int
+    lat: float | None
+    lon: float | None
 
 
 class OltList(BaseModel):
@@ -257,6 +263,8 @@ class AlarmOut(BaseModel):
     work_closed_by: str | None
     resolution_cause: str | None
     resolution_notes: str | None
+    customer_name: str | None    # cliente da ONU (alarmes de ONU)
+    affected_customers: int      # clientes nas ONUs de um rompimento
 
 
 Cause = Literal["fiber_third_party", "fiber_natural", "power", "equipment", "customer",
@@ -293,5 +301,7 @@ class Overview(BaseModel):
     olts: dict[str, int]         # total + contagem por status da coleta
     onus: dict[str, int]         # total, online, offline, unknown
     rx_low: int                  # ONUs com sinal abaixo do limite
+    rx_trend: int = 0            # ONUs com sinal piorando (devem passar do limite em até 7 dias)
+    customers: int = 0           # clientes importados
     alarms: dict[str, int]       # abertos (sem os agrupados) por severidade + total
     recent_alarms: list[AlarmOut]

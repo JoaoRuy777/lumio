@@ -115,9 +115,9 @@ async def create_olt(body: OltCreate, user: Admin, db: TenantDb, request: Reques
     try:
         olt_id = await db.fetchval(
             "INSERT INTO olts (tenant_id, name, host, snmp_port, community_enc, status_interval_s, "
-            "optical_interval_s, enabled) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+            "optical_interval_s, enabled, lat, lon) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
             user.tenant_id, body.name.strip(), body.host, body.snmp_port, cipher(request).encrypt(body.community),
-            body.status_interval_s, body.optical_interval_s, body.enabled)
+            body.status_interval_s, body.optical_interval_s, body.enabled, body.lat, body.lon)
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, f"já existe uma OLT chamada {body.name!r}")
     discovery = await _discover(request, db, olt_id, user.tenant_id, body.host, body.snmp_port, body.community)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from .. import trend
 from ..deps import TenantDb, User
 from ..schemas import Overview
 from .alarms import fetch_alarms
@@ -37,6 +38,8 @@ async def overview(user: User, db: TenantDb) -> Overview:
         olts=olts,
         onus={k: onus[k] for k in ("total", "online", "offline", "unknown")},
         rx_low=onus["rx_low"],
+        rx_trend=await db.fetchval(f"SELECT count(*) FROM ({trend.TREND_SQL}) t"),
+        customers=await db.fetchval("SELECT count(*) FROM customers"),
         alarms=alarms,
         recent_alarms=recent.items,
     )
