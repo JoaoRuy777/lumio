@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -28,11 +28,13 @@ class Ctx:
     olt_id: UUID
     ts: datetime          # quando o coletor leu/recebeu (base da latência)
     source: str           # trap | poll
+    events: list[dict] = field(default_factory=list)   # avisos para o painel, enviados após o commit
 
 
 class Processor:
-    def __init__(self, pool: asyncpg.Pool, default_tenant: str = "demo"):
+    def __init__(self, pool: asyncpg.Pool, default_tenant: str = "demo", redis=None):
         self.pool = pool
+        self.redis = redis            # redis.asyncio.Redis: avisa o painel em tempo real (opcional)
         self.default_tenant = default_tenant
         self.tenant_id: UUID | None = None
         self._olts: dict[str, UUID] = {}                 # modo YAML: nome -> id
@@ -83,6 +85,18 @@ class Processor:
             # ids em cache podem ter vindo da transação desfeita
             self._forget_cache()
             raise
+        # Só depois do COMMIT: o painel nunca recebe aviso de algo que não foi gravado
+        await self._publish(ctx)
+
+    async def _publish(self, ctx: Ctx) -> None:
+        if not (self.redis and ctx.events):
+            return
+        channel = f"lumio:events:{ctx.tenant_id}"
+        try:
+            for ev in ctx.events:
+                await self.redis.publish(channel, json.dumps(ev, default=str))
+        except Exception as e:      # aviso em tempo real é melhor-esforço; o dado já está no banco
+            log.warning("não consegui avisar o painel (%s)", e)
 
     # ------------------------------------------------------------ inventário
 
@@ -148,6 +162,8 @@ class Processor:
         )
         if row["inserted"]:
             self.alarms_opened += 1
+            ctx.events.append({"type": "alarm.opened", "alarm_id": row["id"], "kind": ref.kind,
+                               "severity": ref.severity, "olt_id": ctx.olt_id})
             log.info("alarme %s (%s) aberto em %.0f ms", ref.kind, ref.severity, row["latency_ms"])
         return row["id"]
 
@@ -159,6 +175,8 @@ class Processor:
         )
         if alarm_id:
             log.info("alarme %s encerrado", ref.kind)
+            ctx.events.append({"type": "alarm.cleared", "alarm_id": alarm_id, "kind": ref.kind,
+                               "olt_id": ctx.olt_id})
         return alarm_id
 
     async def _open_alarm_id(self, ctx: Ctx, ref: AlarmRef) -> UUID | None:
