@@ -1,5 +1,4 @@
-# Só para a Vercel: dependências do serviço "api" (vercel.json), que roda a
-# partir da raiz do repositório. O Docker continua usando os requirements de
-# cada serviço; para desenvolver, veja requirements-dev.txt.
+# Só para a Vercel (serviço "api" do vercel.json, que roda a partir da raiz).
+# Tudo o que a API importa, inclusive os drivers SNMP do coletor (pysnmp),
+# está em api/requirements.txt. O Docker usa os requirements de cada serviço.
 -r api/requirements.txt
--r collector/requirements.txt
