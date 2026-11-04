@@ -239,3 +239,77 @@ export function query(params: Record<string, string | number | boolean | string[
   const s = sp.toString();
   return s ? `?${s}` : "";
 }
+
+// ------------------------------------------------------------------ notificações e relatórios (sprint 5)
+
+export type ChannelType = "email" | "webhook";
+
+export interface Delivery {
+  id: string;
+  event: "opened" | "cleared" | "test";
+  status: "pending" | "sending" | "sent" | "failed" | "suppressed";
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  sent_at: string | null;
+  alarm_kind: AlarmKind | null;
+  alarm_severity: Severity | null;
+}
+
+export interface Channel {
+  id: string;
+  name: string;
+  type: ChannelType;
+  target: string;
+  min_severity: Severity;
+  notify_clear: boolean;
+  enabled: boolean;
+  created_at: string;
+  last_delivery: Delivery | null;
+}
+
+export interface ChannelCreated {
+  channel: Channel;
+  secret: string | null;
+}
+
+export interface AvailabilityReport {
+  period: { from: string; to: string };
+  overall_availability_pct: number | null;
+  olts: {
+    olt: string;
+    onus: number;
+    availability_pct: number | null;
+    onu_downtime_min: number;
+    onu_outages: number;
+    fiber_cuts: number;
+    olt_management_pct: number;
+    olt_unreachable_min: number;
+  }[];
+  worst_onus: { olt: string; pon: string; onu: number; serial: string | null; availability_pct: number; downtime_min: number; outages: number }[];
+}
+
+export interface AlarmsReport {
+  period: { from: string; to: string };
+  total: number;
+  open: number;
+  mttr_min: number | null;
+  by_kind: Partial<Record<AlarmKind, number>>;
+  by_severity: Partial<Record<Severity, number>>;
+}
+
+/** Baixa um arquivo da API (com o token) e entrega ao navegador. */
+export async function downloadFile(path: string): Promise<void> {
+  const token = session.get();
+  const res = await fetch(`/api${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new ApiError(res.status, `não foi possível baixar (erro ${res.status})`);
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "lumio-relatorio";
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
