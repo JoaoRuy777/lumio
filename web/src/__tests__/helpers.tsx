@@ -63,6 +63,8 @@ export const me: Me = {
 export function makeOlt(over: Partial<Olt> = {}): Olt {
   return {
     id: "olt-1-id",
+    lat: null,
+    lon: null,
     name: "olt-centro",
     host: "10.0.0.2",
     snmp_port: 161,
@@ -119,6 +121,8 @@ export function makeAlarm(over: Partial<Alarm> = {}): Alarm {
     work_closed_by: null,
     resolution_cause: null,
     resolution_notes: null,
+    customer_name: null,
+    affected_customers: 0,
     ...over,
   };
 }

@@ -130,13 +130,13 @@ export function StatTile({ label, value, detail, tone = "neutral", children }: {
   label: string;
   value: ReactNode;
   detail?: ReactNode;
-  tone?: "neutral" | "bad";
+  tone?: "neutral" | "bad" | "warn";
   children?: ReactNode;
 }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm" aria-label={label}>
       <h2 className="text-sm text-slate-500">{label}</h2>
-      <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${tone === "bad" ? "text-red-700" : "text-slate-900"}`}>
+      <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${{ bad: "text-red-700", warn: "text-amber-700", neutral: "text-slate-900" }[tone]}`}>
         {value}
       </p>
       {detail && <p className="mt-1 text-sm text-slate-500">{detail}</p>}

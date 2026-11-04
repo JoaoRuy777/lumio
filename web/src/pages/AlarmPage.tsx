@@ -170,7 +170,9 @@ export function AlarmPage({ me }: { me: Me }) {
           </h1>
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          {location(a)} · aberto em {dateTime(a.created_at)}
+          {location(a)}
+          {a.customer_name && <> · cliente {a.customer_name}</>}
+          {a.affected_customers > 0 && <> · {a.affected_customers} clientes afetados</>} · aberto em {dateTime(a.created_at)}
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <AlarmStatusBadge status={a.status} />

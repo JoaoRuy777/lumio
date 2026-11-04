@@ -14,6 +14,8 @@ const overview = (over: Partial<Overview> = {}): Overview => ({
   olts: { total: 2, ok: 1, error: 1, late: 0, pending: 0, disabled: 0 },
   onus: { total: 128, online: 112, offline: 16, unknown: 0 },
   rx_low: 3,
+  rx_trend: 0,
+  customers: 0,
   alarms: { critical: 1, major: 0, minor: 0, warning: 2, total: 3 },
   recent_alarms: [makeAlarm()],
   ...over,

@@ -19,6 +19,8 @@ export interface Me {
 
 export interface Olt {
   id: string;
+  lat: number | null;
+  lon: number | null;
   name: string;
   host: string | null;
   snmp_port: number;
@@ -74,6 +76,8 @@ export interface OltInput {
   status_interval_s: number;
   optical_interval_s: number;
   enabled: boolean;
+  lat?: number | null;
+  lon?: number | null;
 }
 
 export class ApiError extends Error {
@@ -192,6 +196,8 @@ export interface Alarm {
   work_closed_by: string | null;
   resolution_cause: Cause | null;
   resolution_notes: string | null;
+  customer_name: string | null;
+  affected_customers: number;
 }
 
 export interface Page<T> {
@@ -203,6 +209,8 @@ export interface Overview {
   olts: Record<"total" | "ok" | "error" | "late" | "pending" | "disabled", number>;
   onus: Record<"total" | "online" | "offline" | "unknown", number>;
   rx_low: number;
+  rx_trend: number;
+  customers: number;
   alarms: Record<Severity | "total", number>;
   recent_alarms: Alarm[];
 }
@@ -387,4 +395,67 @@ export interface AttendanceReport {
   };
   operators: AttendanceOperator[];
   causes: { cause: Cause; label: string; count: number; pct: number; tma_min: number | null }[];
+}
+
+// ------------------------------------------------------------------ clientes e mapa
+
+export type CustomerState = "online" | "offline" | "low" | "trend" | "unknown";
+
+export interface Customer {
+  id: string;
+  code: string | null;
+  name: string;
+  phone: string | null;
+  address: string | null;
+  district: string | null;
+  city: string | null;
+  plan: string | null;
+  lat: number | null;
+  lon: number | null;
+  serial: string;
+  onu_id: string | null;
+  olt_id: string | null;
+  olt_name: string | null;
+  pon: string | null;
+  onu_index: number | null;
+  rx_dbm: number | null;
+  state: CustomerState;
+  ticket_id: string | null;
+}
+
+export interface ImportResult {
+  created: number;
+  updated: number;
+  unmatched: number;
+  errors: { line: number; error: string }[];
+}
+
+export interface MapOlt {
+  id: string;
+  name: string;
+  lat: number | null;
+  lon: number | null;
+  located: boolean;
+  reachable: boolean | null;
+  onus_total: number;
+  onus_online: number;
+  open_alarms: number;
+}
+
+export interface MapData {
+  olts: MapOlt[];
+  customers: Customer[];
+}
+
+export interface AtRiskOnu {
+  onu_id: string;
+  serial: string | null;
+  onu_index: number;
+  rx_dbm: number;
+  olt_id: string;
+  olt_name: string;
+  pon: string;
+  slope_db_day: number;
+  points: number;
+  days_to_limit: number;
 }

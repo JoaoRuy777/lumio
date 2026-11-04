@@ -27,6 +27,8 @@ export function OltForm({ olt, onSaved, onCancel }: Props) {
     status_interval_s: String(olt?.status_interval_s ?? 60),
     optical_interval_s: String(olt?.optical_interval_s ?? 300),
     enabled: olt?.enabled ?? true,
+    lat: olt?.lat != null ? String(olt.lat) : "",
+    lon: olt?.lon != null ? String(olt.lon) : "",
   });
   const [test, setTest] = useState<ConnectionTest | null>(null);
   const [testing, setTesting] = useState(false);
@@ -75,6 +77,9 @@ export function OltForm({ olt, onSaved, onCancel }: Props) {
       optical_interval_s: Number(form.optical_interval_s),
       enabled: form.enabled,
       ...(form.community ? { community: form.community } : {}),
+      ...(form.lat.trim() && form.lon.trim()
+        ? { lat: Number(form.lat.replace(",", ".")), lon: Number(form.lon.replace(",", ".")) }
+        : {}),
     };
     try {
       const saved = editing
@@ -151,6 +156,17 @@ export function OltForm({ olt, onSaved, onCancel }: Props) {
           </Field>
           <Field label="Potência óptica (s)" hint="mínimo 60 s">
             <input className={inputClass} type="number" min={60} max={86400} value={form.optical_interval_s} onChange={set("optical_interval_s")} required />
+          </Field>
+        </div>
+      </Section>
+
+      <Section title="Localização no mapa (opcional)">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Latitude" hint="ex.: -22.2139 (clique com o botão direito no Google Maps para copiar)">
+            <input className={inputClass} inputMode="decimal" value={form.lat} onChange={set("lat")} placeholder="-22.2139" />
+          </Field>
+          <Field label="Longitude" hint="sem coordenada, o mapa usa o centro dos clientes da OLT">
+            <input className={inputClass} inputMode="decimal" value={form.lon} onChange={set("lon")} placeholder="-49.9458" />
           </Field>
         </div>
       </Section>

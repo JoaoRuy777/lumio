@@ -57,6 +57,16 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
   anota o que fez numa linha do tempo e encerra com a causa. Aba "Meus
   atendimentos" e relatório da equipe com TME, TMA, chamados por operador e
   causas (tela, CSV e PDF).
+- **Clientes e mapa da rede**: base de clientes importada por CSV e ligada às
+  ONUs pelo serial; alarmes, e-mails e relatórios dizem quem foi afetado. Mapa
+  (Leaflet + OpenStreetMap) com OLTs e clientes coloridos pelo estado, quem está
+  sem serviço pulsando e ligado à OLT. Base fictícia de Marília em
+  `docs/demo/clientes-marilia.csv` (gerada por `scripts/gen_clientes_marilia.py`).
+- **Modo TV do NOC** (`/tv`): tela de parede com números grandes, fila de
+  chamados com cronômetro (vermelho se ninguém assumir em 15 min) e o mapa.
+- **Sinal piorando** (manutenção preventiva): regressão linear da potência nas
+  últimas 24 h aponta as ONUs que vão passar do limite de alarme em até 7 dias,
+  antes de o cliente cair.
 - **Banco** (`db/`): Postgres 17 com Row-Level Security por tenant; migrações
   em SQL puro aplicadas pelo serviço `migrate`.
 - **Desempenho** (`scripts/bench/`): teste de carga com o simulador em vários
@@ -65,7 +75,7 @@ simulador ──SNMP/traps──▶ coletor ──Redis Stream──▶ worker �
 - **Produção** (`docker-compose.prod.yml`, `deploy/`): HTTPS automático
   (Caddy), só as portas 80/443 expostas, segredos obrigatórios no `.env`,
   backup diário do banco.
-- **Testes**: 149 no backend (`tests/`), 38 no painel (`web/src/__tests__`) e
+- **Testes**: 155 no backend (`tests/`), 42 no painel (`web/src/__tests__`) e
   1 de ponta a ponta no navegador (`web/e2e`, Playwright).
 
 ## Rodando com Docker
