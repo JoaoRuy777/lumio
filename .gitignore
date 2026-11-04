@@ -9,3 +9,7 @@ node_modules/
 dist/
 build/
 *.log
+
+# Playwright
+web/test-results/
+web/playwright-report/
