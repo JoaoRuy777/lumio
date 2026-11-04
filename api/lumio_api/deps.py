@@ -58,6 +58,9 @@ async def tenant_db(
 ) -> AsyncIterator[asyncpg.Connection]:
     """Transação com app.tenant_id = tenant do token. O RLS faz o resto."""
     async with tenant_tx(db_pool, user.tenant_id) as conn:
+        # usuário removido perde o acesso na hora, mesmo com o token ainda válido
+        if not await conn.fetchval("SELECT EXISTS (SELECT 1 FROM users WHERE id = $1)", user.user_id):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "sessão inválida ou expirada")
         yield conn
 
 

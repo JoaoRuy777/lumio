@@ -313,3 +313,20 @@ export async function downloadFile(path: string): Promise<void> {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export type Role = Me["role"];
+
+export interface AppUser {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  created_at: string;
+}
+
+export interface UserInput {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
+}
