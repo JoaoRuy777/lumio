@@ -1,0 +1,26 @@
+# Banco no Neon em vez do Postgres local. Use JUNTO com o docker-compose.yml:
+#
+#   neon deploy                                                        # cria o banco (.env.local)
+#   docker compose run --rm --no-deps tests python scripts/neon_setup.py   # migrações e segredos
+#   docker compose --env-file .env.lumio.local -f docker-compose.yml -f docker-compose.neon.yml up -d --build
+#
+# A API usa a conexão pooled com o papel lumio_app (sujeito ao RLS); worker e
+# notificador usam a direta com lumio_system. Postgres e migrate locais não sobem.
+services:
+  api:
+    environment:
+      DATABASE_URL: ${LUMIO_API_DATABASE_URL:?rode scripts/neon_setup.py}
+    depends_on: !override
+      redis: { condition: service_healthy }
+
+  worker:
+    environment:
+      DATABASE_URL: ${LUMIO_SYSTEM_DATABASE_URL:?rode scripts/neon_setup.py}
+    depends_on: !override
+      redis: { condition: service_healthy }
+
+  notifier:
+    environment:
+      DATABASE_URL: ${LUMIO_SYSTEM_DATABASE_URL:?rode scripts/neon_setup.py}
+    depends_on: !override
+      mailpit: { condition: service_started }

@@ -151,15 +151,14 @@ abre as telas mas não coleta nem gera alarmes.
 
 O que configurar no projeto da Vercel:
 
-1. **Postgres externo** (ex.: Neon, Supabase). Rode as migrações uma vez, do
-   seu computador:
-   `docker compose run --rm --no-deps -e DATABASE_URL=<url do admin> -e LUMIO_APP_DB_PASSWORD=... -e LUMIO_SYSTEM_DB_PASSWORD=... migrate`.
-   A migração cria o papel `lumio_system` com `BYPASSRLS`; confira se o
-   provedor permite (alguns não dão superusuário).
-2. **Variáveis de ambiente** do serviço `api`: `DATABASE_URL` (papel
-   `lumio_app`), `LUMIO_JWT_SECRET`, `LUMIO_SECRET_KEY`, `LUMIO_SERVICE_TOKEN`
-   (gere com `deploy/gen-env.sh` e copie do `.env`) e, opcional, `REDIS_URL`
-   (ex.: Upstash) para o tempo real; sem ele o painel atualiza a cada 30 s.
+1. **Postgres no Neon** (seção abaixo). Para outro provedor, rode as
+   migrações com `DATABASE_URL=<url do admin>` e confira se ele permite criar
+   o papel `lumio_system` com `BYPASSRLS`.
+2. **Variáveis de ambiente** do serviço `api`: `DATABASE_URL` =
+   `LUMIO_API_DATABASE_URL` do `.env.lumio.local` (pooled, papel `lumio_app`),
+   `LUMIO_JWT_SECRET`, `LUMIO_SECRET_KEY`, `LUMIO_SERVICE_TOKEN` (do mesmo
+   arquivo) e, opcional, `REDIS_URL` (ex.: Upstash) para o tempo real; sem ele
+   o painel atualiza a cada 30 s.
 3. Teste com `vercel dev` e depois um deploy de *preview*. A conferir no
    primeiro teste: as rotas do painel (ex.: abrir `/olts/<id>` direto) caírem
    no `index.html`, e o "Testar conexão" da API alcançar a OLT (a Vercel não
@@ -169,6 +168,40 @@ O restante (coletor, worker, notificador) iria para uma VPS com o mesmo
 `docker-compose.yml`, apontando o coletor para o domínio da Vercel
 (`--api-url https://seu-projeto.vercel.app`) e o worker e o notificador para
 o mesmo Postgres e Redis.
+
+## Banco no Neon
+
+O projeto Neon está descrito em `neon.ts` (região São Paulo, `sa-east-1`).
+
+```bash
+npm i -g neon@latest && neon login
+neon deploy                     # cria o banco e grava .env.local (fora do git)
+docker compose run --rm --no-deps tests python scripts/neon_setup.py
+```
+
+O `neon_setup.py` gera o `.env.lumio.local` (fora do git; guarde uma cópia)
+com as senhas dos papéis e as chaves da Lumio, aplica as migrações pela
+conexão **direta** e escreve as URLs de cada serviço:
+
+| Serviço | Variável | Conexão |
+| --- | --- | --- |
+| API (Vercel ou servidor) | `LUMIO_API_DATABASE_URL` | pooled (`-pooler`), papel `lumio_app`, sujeito ao RLS |
+| worker e notificador | `LUMIO_SYSTEM_DATABASE_URL` | direta, papel `lumio_system` |
+
+Na conexão pooled (PgBouncer em modo transação) a API desliga o cache de
+prepared statements do asyncpg sozinha; o `app.tenant_id` já é por transação.
+
+Para rodar a stack local usando o Neon no lugar do Postgres do compose:
+
+```bash
+docker compose --env-file .env.lumio.local -f docker-compose.yml -f docker-compose.neon.yml up -d --build
+```
+
+**Deixe o worker perto do banco.** Ele faz várias consultas em sequência por
+alarme. Do computador de desenvolvimento até o Neon a ida e volta foi de ~130
+ms, e cada alarme levou ~2 s para gravar (no Postgres local, ~10 ms). Num
+servidor em São Paulo, na mesma região do banco, a ida e volta deve cair para
+poucos milissegundos.
 
 ## Checklist de segurança
 
