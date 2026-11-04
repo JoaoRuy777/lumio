@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
+from urllib.parse import urlsplit
 from uuid import UUID
 
 import asyncpg
@@ -20,7 +21,17 @@ async def create_pool(dsn: str, role: str | None = None) -> asyncpg.Pool:
         if role:
             await conn.execute(f'SET ROLE "{role}"')
 
-    return await asyncpg.create_pool(dsn, min_size=1, max_size=10, setup=setup if role else None)
+    return await asyncpg.create_pool(dsn, min_size=1, max_size=10, setup=setup if role else None,
+                                     **pool_options(dsn))
+
+
+def pool_options(dsn: str) -> dict:
+    """Pooler em modo transação (PgBouncer, ex.: host "-pooler" do Neon): cada
+    consulta pode cair numa conexão diferente, então o cache de prepared
+    statements do asyncpg fica desligado. O app.tenant_id já é por transação
+    (set_config(..., true)), o que o pooler preserva."""
+    host = urlsplit(dsn).hostname or ""
+    return {"statement_cache_size": 0} if "-pooler" in host else {}
 
 
 @asynccontextmanager
