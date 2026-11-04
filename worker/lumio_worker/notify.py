@@ -300,13 +300,29 @@ class Notifier:
         msg.set_content(text)
         if html:
             msg.add_alternative(html, subtype="html")
+        client = aiosmtplib.SMTP(hostname=self.smtp.host, port=self.smtp.port, timeout=15,
+                                 start_tls=self.smtp.security == "starttls", use_tls=self.smtp.security == "tls")
         try:
-            await aiosmtplib.send(
-                msg, hostname=self.smtp.host, port=self.smtp.port, username=self.smtp.username,
-                password=self.smtp.password, start_tls=self.smtp.security == "starttls",
-                use_tls=self.smtp.security == "tls", timeout=15)
+            await client.connect()
+            if self.smtp.username:
+                # Um método só (PLAIN, senão LOGIN). O login() padrão tenta o próximo método
+                # depois de uma recusa, e o servidor fecha ou trava: a causa real (usuário/senha)
+                # sumia atrás de "conexão fechada" ou "timeout".
+                if not client.server_auth_methods:
+                    await client.ehlo()           # depois do STARTTLS a lista de métodos só vem num novo EHLO
+                auth = client.auth_plain if "plain" in client.server_auth_methods else client.auth_login
+                try:
+                    await auth(self.smtp.username, self.smtp.password or "")
+                except aiosmtplib.SMTPAuthenticationError as e:
+                    raise DeliveryError(
+                        f"o servidor SMTP recusou o usuário/senha de {self.smtp.username} "
+                        f"(no Gmail, use uma senha de app): {e.message}") from e
+            await client.send_message(msg)
         except aiosmtplib.SMTPException as e:
             raise DeliveryError(f"SMTP: {e}") from e
+        finally:
+            if client.is_connected:
+                client.close()
 
     async def _webhook(self, url: str, secret: str, payload: dict, delivery_id: str) -> None:
         await check_webhook_url(url, self.allow_private)

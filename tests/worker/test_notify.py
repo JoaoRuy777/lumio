@@ -14,6 +14,7 @@ from datetime import timedelta
 import pytest
 import uvicorn
 from aiosmtpd.controller import Controller
+from aiosmtpd.smtp import AuthResult
 from cryptography.fernet import Fernet
 
 from lumio_worker import notify
@@ -271,6 +272,41 @@ async def test_mensagem_de_teste_e_smtp_fora_do_ar(processor, pool):
     await Notifier(pool, KEY, dead).run_once()
     [row] = await queue(pool)
     assert row["status"] == "pending" and row["attempts"] == 1 and row["last_error"]
+
+
+@pytest.fixture
+def smtp_with_auth():
+    """SMTP que exige login: aceita só alertas@lumio.test / senha-certa."""
+    inbox = Inbox()
+    port = free_port()
+
+    def authenticator(server, session, envelope, mechanism, auth_data):
+        ok = (auth_data.login, auth_data.password) == (b"alertas@lumio.test", b"senha-certa")
+        return AuthResult(success=ok, handled=False)      # handled=False: o servidor responde 535
+
+    ctl = Controller(inbox, hostname="127.0.0.1", port=port, authenticator=authenticator,
+                     auth_require_tls=False, auth_required=True)
+    ctl.start()
+    yield inbox, port
+    ctl.stop()
+
+
+@pytest.mark.parametrize("password, ok", [("senha-certa", True), ("senha-errada", False)])
+async def test_smtp_com_login(processor, pool, smtp_with_auth, password, ok):
+    inbox, port = smtp_with_auth
+    await processor.handle(rec("event", kind="olt_reachable", source="poll"))      # cria o tenant
+    channel = await add_channel(pool, processor.tenant_id, "noc", "email", "noc@a.com.br")
+    await pool.execute("INSERT INTO notifications (tenant_id, channel_id, event) VALUES ($1, $2, 'test')",
+                       processor.tenant_id, channel)
+    cfg = SmtpConfig(host="127.0.0.1", port=port, security="none", username="alertas@lumio.test", password=password)
+    await Notifier(pool, KEY, cfg).run_once()
+    [row] = await queue(pool)
+    if ok:
+        assert row["status"] == "sent" and len(inbox.messages) == 1
+    else:
+        # mensagem que diz o que fazer, não "conexão fechada"
+        assert row["status"] == "pending" and not inbox.messages
+        assert "recusou o usuário/senha de alertas@lumio.test" in row["last_error"]
 
 
 def test_assinatura_e_backoff():
