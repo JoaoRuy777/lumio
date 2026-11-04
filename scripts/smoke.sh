@@ -43,10 +43,30 @@ olts() { curl -fsS "$API/olts" -H "$AUTH"; }
 collecting() { [ "$(olts | json 'd.items.every((o) => o.collection_status === "ok")')" = "true" ]; }
 fiber_cut_alarm() { [ "$(olts | json 'd.items.find((o) => o.name === "olt-16101").active_alarms')" -ge 17 ]; }
 
+# sprint 5: canal de e-mail (no compose, os e-mails caem no Mailpit)
+NOC="noc-${EMAIL%%@*}@smoke.lumio.com.br"
+curl -fsS -X POST "$API/notification-channels" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"name\":\"NOC\",\"type\":\"email\",\"target\":\"$NOC\",\"min_severity\":\"critical\"}" > /dev/null
+echo "ok: canal de e-mail criado ($NOC)"
+
 # o coletor relê o cadastro a cada 30 s
 wait_until 90 "coleta das 2 OLTs em andamento" collecting
 curl -fsS -X POST localhost:8080/scenarios -H 'content-type: application/json' \
   -d '{"type":"fiber_cut","olt":"olt-centro","pon":"0/1/2"}' > /dev/null
 wait_until 10 "alarme de rompimento visível na API (1 PON + 16 ONUs)" fiber_cut_alarm
 olts | json 'd.items.map((o) => `  ${o.name}: ${o.onus_online}/${o.onus_total} ONUs online, ${o.active_alarms} alarmes`).join("\n")'
+
+# um e-mail só (o do rompimento), não 17
+MAILPIT=${MAILPIT:-http://localhost:8025}
+inbox() { curl -fsS "$MAILPIT/api/v1/search?query=to:$NOC"; }
+email_arrived() { [ "$(inbox | json 'd.messages_count')" -ge 1 ]; }
+wait_until 30 "e-mail do alarme entregue" email_arrived
+sleep 16   # passa da espera de 15 s das ONUs: nenhum e-mail extra pode chegar
+inbox | json '`  ${d.messages_count} e-mail(s): ${d.messages.map((m) => m.Subject).join(" | ")}`'
+[ "$(inbox | json 'd.messages_count')" = "1" ] || { echo "FALHOU: esperava 1 e-mail"; exit 1; }
+
+# relatórios
+curl -fsS "$API/reports/alarms?format=csv" -H "$AUTH" | grep -q "Rompimento de fibra" && echo "ok: relatório de alarmes em CSV"
+curl -fsS "$API/reports/availability?format=pdf" -H "$AUTH" | head -c 5 | grep -q "%PDF-" && echo "ok: relatório de disponibilidade em PDF"
+
 curl -fsS -X POST localhost:8080/scenarios -H 'content-type: application/json' -d '{"type":"reset"}' > /dev/null
