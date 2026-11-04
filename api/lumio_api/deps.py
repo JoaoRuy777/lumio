@@ -24,6 +24,7 @@ class CurrentUser:
     user_id: UUID
     tenant_id: UUID
     role: str
+    session_version: int = 0    # claim "sv" do token; sobe a cada troca de senha
 
 
 def settings(request: Request) -> Settings:
@@ -46,7 +47,8 @@ def current_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "faça login", headers={"WWW-Authenticate": "Bearer"})
     try:
         claims = decode_token(cfg.jwt_secret, cred.credentials)
-        return CurrentUser(UUID(claims["sub"]), UUID(claims["tid"]), claims.get("role", "operator"))
+        return CurrentUser(UUID(claims["sub"]), UUID(claims["tid"]), claims.get("role", "operator"),
+                           int(claims.get("sv", 0)))
     except (jwt.PyJWTError, ValueError):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "sessão inválida ou expirada",
                             headers={"WWW-Authenticate": "Bearer"})
@@ -58,8 +60,10 @@ async def tenant_db(
 ) -> AsyncIterator[asyncpg.Connection]:
     """Transação com app.tenant_id = tenant do token. O RLS faz o resto."""
     async with tenant_tx(db_pool, user.tenant_id) as conn:
-        # usuário removido perde o acesso na hora, mesmo com o token ainda válido
-        if not await conn.fetchval("SELECT EXISTS (SELECT 1 FROM users WHERE id = $1)", user.user_id):
+        # Usuário removido perde o acesso na hora, mesmo com o token ainda válido; e um
+        # token de antes da última troca de senha deixa de valer (outras sessões caem).
+        version = await conn.fetchval("SELECT session_version FROM users WHERE id = $1", user.user_id)
+        if version is None or version != user.session_version:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "sessão inválida ou expirada")
         yield conn
 

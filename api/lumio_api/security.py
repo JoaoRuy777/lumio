@@ -28,9 +28,10 @@ def verify_password(password_hash: str | None, password: str) -> bool:
         return False
 
 
-def create_token(secret: str, *, user_id: UUID, tenant_id: UUID, role: str, ttl_minutes: int) -> str:
+def create_token(secret: str, *, user_id: UUID, tenant_id: UUID, role: str, ttl_minutes: int,
+                 session_version: int = 0) -> str:
     now = datetime.now(timezone.utc)
-    claims = {"sub": str(user_id), "tid": str(tenant_id), "role": role,
+    claims = {"sub": str(user_id), "tid": str(tenant_id), "role": role, "sv": session_version,
               "iat": now, "exp": now + timedelta(minutes=ttl_minutes)}
     return jwt.encode(claims, secret, algorithm="HS256")
 
