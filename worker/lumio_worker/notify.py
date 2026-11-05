@@ -21,8 +21,9 @@ import ipaddress
 import json
 import logging
 import socket
+import time
 from dataclasses import dataclass
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from html import escape
 from urllib.parse import urlsplit
@@ -130,12 +131,16 @@ def describe(n: asyncpg.Record) -> tuple[str, str, dict]:
         lines.append(f"Potência recebida: {details['rx_dbm']} dBm")
     if "cpu" in details:
         lines.append(f"CPU: {details['cpu']}%")
+    if n["event"] == "escalated":
+        waiting = human_duration((datetime.now(timezone.utc) - n["alarm_created_at"]).total_seconds())
+        subject = f"[Lumio] ESCALONADO: {kind} — {where} sem responsável há {waiting}"
+        lines.insert(0, f"Ninguém assumiu este alarme há {waiting}.")
     if n["event"] == "cleared":
         subject = f"[Lumio] NORMALIZADO: {kind} — {where}"
         lines.insert(0, "Normalizado.")
         if n["cleared_at"]:
             lines.append(f"Duração: {human_duration((n['cleared_at'] - n['event_ts']).total_seconds())}")
-    else:
+    elif n["event"] != "escalated":
         subject = f"[Lumio] {SEVERITY_LABEL[n['severity']]}: {kind} — {where}"
     payload = {
         "event": f"alarm.{n['event']}",
@@ -160,13 +165,15 @@ def html_email(n: asyncpg.Record, subject: str, text: str, url: str) -> str:
         color, badge = TEST_COLOR, "TESTE"
     elif n["event"] == "cleared":
         color, badge = CLEARED_COLOR, "NORMALIZADO"
+    elif n["event"] == "escalated":
+        color, badge = SEVERITY_COLOR.get(n["severity"], TEST_COLOR), "ESCALONADO"
     else:
         color, badge = SEVERITY_COLOR.get(n["severity"], TEST_COLOR), SEVERITY_LABEL.get(n["severity"], "ALERTA")
     title = subject.removeprefix("[Lumio] ")
     if n["event"] != "test":                  # "CRÍTICO: Rompimento…": a severidade já está no selo
         title = title.partition(": ")[2] or title
     # no texto puro, as primeiras linhas repetem o título ("Normalizado." / "<alarme> em <onde>")
-    skip = {"Normalizado."} | ({text.split("\n")[1 if n["event"] == "cleared" else 0]} if n["event"] != "test" else set())
+    skip = {"Normalizado."} | ({text.split("\n")[1 if n["event"] in ("cleared", "escalated") else 0]} if n["event"] != "test" else set())
     title = escape(title)
     rows = []
     for line in text.split("\n"):
@@ -221,6 +228,35 @@ Se não foi você, ignore este e-mail: a sua senha continua a mesma.
 
 # Pedidos de redefinição ainda não enviados. "attempts" sobe ao pegar o pedido,
 # então dois notificadores não mandam o mesmo e-mail.
+# Escalonamento: alarme principal, ainda na rede, sem ninguém assumir, fora de
+# manutenção, mais grave ou igual ao nível da regra e mais velho que o prazo dela.
+# Cada regra escala um alarme uma vez (alarm_escalations) e enfileira a entrega.
+ESCALATE_SQL = """
+    WITH due AS (
+        SELECT a.tenant_id, a.id AS alarm_id, r.id AS rule_id, r.channel_id
+        FROM escalation_rules r
+        JOIN notification_channels c ON c.id = r.channel_id AND c.enabled
+        JOIN alarms a ON a.tenant_id = r.tenant_id
+        WHERE r.enabled AND a.parent_id IS NULL AND a.status <> 'cleared'
+          AND a.assigned_to IS NULL AND a.work_closed_at IS NULL AND a.maintenance_id IS NULL
+          AND a.created_at <= now() - make_interval(mins => r.after_minutes)
+          AND (CASE a.severity WHEN 'critical' THEN 0 WHEN 'major' THEN 1 WHEN 'minor' THEN 2 ELSE 3 END)
+              <= (CASE r.min_severity WHEN 'critical' THEN 0 WHEN 'major' THEN 1 WHEN 'minor' THEN 2 ELSE 3 END)
+          AND NOT EXISTS (SELECT 1 FROM alarm_escalations e WHERE e.alarm_id = a.id AND e.rule_id = r.id)
+    ), marked AS (
+        INSERT INTO alarm_escalations (tenant_id, alarm_id, rule_id)
+        SELECT tenant_id, alarm_id, rule_id FROM due
+        ON CONFLICT DO NOTHING
+        RETURNING tenant_id, alarm_id, rule_id
+    )
+    INSERT INTO notifications (tenant_id, channel_id, alarm_id, event)
+    SELECT m.tenant_id, d.channel_id, m.alarm_id, 'escalated'
+    FROM marked m JOIN due d ON d.alarm_id = m.alarm_id AND d.rule_id = m.rule_id
+    ON CONFLICT DO NOTHING
+    RETURNING id
+"""
+ESCALATE_EVERY_S = 30.0
+
 RESET_DUE_SQL = """
     UPDATE password_resets r SET attempts = r.attempts + 1
     FROM users u JOIN tenants t ON t.id = u.tenant_id
@@ -243,6 +279,7 @@ DUE_SQL = """
 DETAIL_SQL = """
     SELECT n.id, n.event, n.attempts, n.alarm_id, c.name AS channel_name, c.type, c.target, c.secret_enc,
            t.name AS tenant_name, a.kind, a.severity, a.status AS status_alarm, a.parent_id, a.details,
+           a.created_at AS alarm_created_at,
            a.event_ts, a.cleared_at, o.name AS olt_name, p.name AS pon, u.onu_index, u.serial AS onu_serial,
            (SELECT count(*) FROM alarms k WHERE k.parent_id = a.id) AS children,
            cu.name AS customer_name, cu.phone AS customer_phone,
@@ -273,6 +310,8 @@ class Notifier:
         self.poll_s = poll_s
         self.sent = 0
         self.failed = 0
+        self.escalated = 0
+        self._next_escalation = 0.0
 
     async def recover(self) -> None:
         """Entregas que ficaram 'sending' (o processo caiu no meio) voltam para a fila."""
@@ -280,8 +319,19 @@ class Notifier:
         if n != "UPDATE 0":
             log.info("recuperadas: %s", n)
 
+    async def escalate(self) -> int:
+        """Enfileira os avisos de escalonamento vencidos (todas as regras de todos os provedores)."""
+        rows = await self.pool.fetch(ESCALATE_SQL)
+        if rows:
+            self.escalated += len(rows)
+            log.info("escalonados: %d", len(rows))
+        return len(rows)
+
     async def run_once(self) -> int:
         """Envia o que estiver vencido. Devolve quantas entregas tentou."""
+        if time.monotonic() >= self._next_escalation:
+            self._next_escalation = time.monotonic() + ESCALATE_EVERY_S
+            await self.escalate()
         ids = [r["id"] for r in await self.pool.fetch(DUE_SQL, BATCH)]
         await asyncio.gather(*(self._deliver(i) for i in ids))
         resets = await self.pool.fetch(RESET_DUE_SQL, BATCH)

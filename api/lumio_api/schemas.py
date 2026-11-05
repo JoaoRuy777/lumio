@@ -267,6 +267,7 @@ class AlarmOut(BaseModel):
     affected_customers: int      # clientes nas ONUs de um rompimento
     maintenance_id: UUID | None = None       # aberto durante manutenção programada (sem aviso)
     maintenance_reason: str | None = None
+    escalated_at: datetime | None = None     # última vez que foi escalado (ninguém assumiu a tempo)
 
 
 Cause = Literal["fiber_third_party", "fiber_natural", "power", "equipment", "customer",
@@ -288,7 +289,7 @@ class CloseIn(BaseModel):
 
 class TimelineItem(BaseModel):
     at: datetime
-    kind: Literal["opened", "assigned", "transferred", "note", "closed", "reopened", "notified", "cleared"]
+    kind: Literal["opened", "assigned", "transferred", "note", "closed", "reopened", "notified", "escalated", "cleared"]
     actor: str | None = None
     target: str | None = None
     body: str | None = None
