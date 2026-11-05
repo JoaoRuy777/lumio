@@ -24,6 +24,9 @@ class Settings:
     token_ttl_minutes: int = 12 * 60
     snmp_timeout: float = 2.0
     snmp_retries: int = 1
+    gemini_api_key: str | None = None  # assistente de IA; sem ela, o assistente fica desligado
+    # modelos em ordem de preferência: se um estiver sobrecarregado, tenta o próximo
+    ai_models: tuple[str, ...] = ("gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest")
 
     def __post_init__(self) -> None:
         if len(self.jwt_secret) < 32:
@@ -39,4 +42,7 @@ class Settings:
             db_role=os.environ.get("LUMIO_DB_ROLE") or None,
             redis_url=os.environ.get("REDIS_URL") or None,
             token_ttl_minutes=int(os.environ.get("LUMIO_TOKEN_TTL_MINUTES", 12 * 60)),
+            gemini_api_key=os.environ.get("GEMINI_API_KEY") or None,
+            **({"ai_models": tuple(m.strip() for m in os.environ["LUMIO_AI_MODELS"].split(",") if m.strip())}
+               if os.environ.get("LUMIO_AI_MODELS") else {}),
         )

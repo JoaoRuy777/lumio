@@ -53,6 +53,8 @@ services:
       # chave Fernet só de desenvolvimento; gere outra para produção (ver .env.example)
       LUMIO_SECRET_KEY: ${LUMIO_SECRET_KEY:-FzmoxWgkS_PkkB-SvoKahxsim_yz5CR0b6dZxP03CYU=}
       REDIS_URL: redis://redis:6379/0          # avisos em tempo real para o painel (SSE)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}      # assistente de IA (opcional)
+      LUMIO_AI_MODELS: ${LUMIO_AI_MODELS:-}
     ports:
       - "8000:8000"
     depends_on:

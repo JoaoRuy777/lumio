@@ -40,9 +40,10 @@ ACTION_LABEL = {
     "maintenance.cancel": "Cancelou manutenção",
     "customer.import": "Importou clientes (CSV)",
     "customer.delete": "Removeu cliente",
+    "assistant.ask": "Perguntou ao assistente de IA",
 }
 
-Category = Literal["auth", "user", "olt", "channel", "escalation", "maintenance", "customer"]
+Category = Literal["auth", "user", "olt", "channel", "escalation", "maintenance", "customer", "assistant"]
 
 
 class AuditEntry(BaseModel):
