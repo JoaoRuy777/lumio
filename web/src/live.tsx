@@ -10,6 +10,9 @@ import { LOGOUT_EVENT, session } from "./api";
 
 export type LiveStatus = "connecting" | "live" | "offline";
 
+/** Evento da janela disparado a cada aviso de alarme (som, notificação, toast). */
+export const ALARM_EVENT = "lumio:alarm";
+
 export interface LiveEvent {
   type: "alarm.opened" | "alarm.cleared" | "alarm.acknowledged";
   alarm_id: string;
@@ -59,6 +62,7 @@ export function LiveProvider({ children, retryMs = 1000 }: { children: ReactNode
 
     function handle(ev: LiveEvent) {
       if (ev.type === "alarm.opened") setFresh((s) => new Set(s).add(ev.alarm_id));
+      window.dispatchEvent(new CustomEvent(ALARM_EVENT, { detail: ev }));
       for (const key of AFFECTED) qc.invalidateQueries({ queryKey: key });
     }
 
