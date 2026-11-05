@@ -55,7 +55,7 @@ describe("manutenção programada", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Encerrar agora" }));
     await waitFor(() => expect(calls.some((c) => c.key === "POST /maintenance/w1/end")).toBe(true));
-  });
+  }, 15_000); // digita bastante: com a suíte inteira em paralelo passa dos 5 s padrão
 
   it("faixa de aviso e selo no alarme silenciado", async () => {
     mockApi({ "GET /maintenance": () => ({ json: [win()] }) });

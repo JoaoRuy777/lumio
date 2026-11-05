@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Readings } from "../api";
 import { dateTime, dbm, RX_LIMIT_DBM } from "../format";
 
@@ -17,7 +17,12 @@ function tick(ts: number, spanHours: number) {
     : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-export function RxChart({ readings, hours }: { readings: Readings; hours: number }) {
+export interface Outage {
+  from: number;
+  to: number;
+}
+
+export function RxChart({ readings, hours, outages = [] }: { readings: Readings; hours: number; outages?: Outage[] }) {
   const [asTable, setAsTable] = useState(false);
   const points = readings.items.map((r) => ({ t: new Date(r.ts).getTime(), rx: r.rx_dbm }));
   const values = points.map((p) => p.rx).filter((v): v is number => v !== null);
@@ -38,6 +43,12 @@ export function RxChart({ readings, hours }: { readings: Readings; hours: number
   const lo = Math.floor(min / step) * step;
   const hi = Math.ceil(max / step) * step;
   const ticks = Array.from({ length: (hi - lo) / step + 1 }, (_, i) => lo + i * step);
+  // quedas dentro da janela do gráfico (cortadas nas bordas)
+  const first = points[0].t;
+  const last = points[points.length - 1].t;
+  const shown = outages
+    .map((o) => ({ from: Math.max(o.from, first), to: Math.min(o.to, last) }))
+    .filter((o) => o.to > o.from);
 
   return (
     <div className="px-2 pt-3 pb-2">
@@ -85,6 +96,9 @@ export function RxChart({ readings, hours }: { readings: Readings; hours: number
                 minTickGap={40}
               />
               <YAxis domain={[lo, hi]} ticks={ticks} tick={AXIS_TEXT} axisLine={false} tickLine={false} width={44} />
+              {shown.map((o) => (
+                <ReferenceArea key={o.from} x1={o.from} x2={o.to} y1={lo} y2={hi} fill={LIMIT} fillOpacity={0.12} stroke="none" ifOverflow="hidden" />
+              ))}
               <ReferenceLine
                 y={RX_LIMIT_DBM}
                 stroke={LIMIT}
@@ -109,6 +123,12 @@ export function RxChart({ readings, hours }: { readings: Readings; hours: number
             </LineChart>
           </ResponsiveContainer>
         </div>
+      )}
+      {!asTable && shown.length > 0 && (
+        <p className="flex items-center gap-1.5 px-3 pt-1 text-xs text-slate-500">
+          <span className="inline-block size-2.5 rounded-sm" style={{ background: LIMIT, opacity: 0.35 }} aria-hidden />
+          Faixas vermelhas: ONU fora do ar ({shown.length} {shown.length === 1 ? "queda" : "quedas"} no período)
+        </p>
       )}
     </div>
   );
