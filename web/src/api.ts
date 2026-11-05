@@ -549,3 +549,22 @@ export interface AssistantReply {
   model: string;
   remaining_today: number;
 }
+
+// ------------------------------------------------------------------ chassi da OLT
+
+export interface ChassisOnu {
+  id: string;
+  onu_index: number;
+  serial: string | null;
+  state: CustomerState;
+  rx_dbm: number | null;
+  customer: string | null;
+}
+
+export interface ChassisPon {
+  id: string;
+  name: string;
+  onus: ChassisOnu[];
+  fiber_cut: boolean;
+  in_maintenance: boolean;
+}
