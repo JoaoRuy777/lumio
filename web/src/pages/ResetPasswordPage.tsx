@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError, session } from "../api";
 import { Button, Field, inputClass } from "../components/ui";
-import { ThemeToggle } from "../theme";
+import { AuthLayout } from "../components/AuthLayout";
 import { Logo } from "../components/Logo";
 
 /** Aberta pelo link do e-mail de "esqueci minha senha" (/redefinir-senha?token=...). */
@@ -35,13 +35,12 @@ export function ResetPasswordPage() {
   const goToLogin = () => window.location.assign("/");
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4">
-      <ThemeToggle className="absolute top-4 right-4" />
-      <div className="w-full max-w-sm">
+    <AuthLayout>
+      <div>
         <h1 className="mb-6">
           <Logo size={44} />
         </h1>
-        <div className="space-y-4 rounded-xl border border-slate-200 bg-surface p-6 shadow-sm">
+        <div className="space-y-4 rounded-xl border border-slate-200 bg-surface p-6">
           <h2 className="text-lg font-medium">Criar senha nova</h2>
           {done ? (
             <>
@@ -81,6 +80,6 @@ export function ResetPasswordPage() {
           )}
         </div>
       </div>
-    </main>
+    </AuthLayout>
   );
 }
