@@ -28,6 +28,7 @@ import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { UsersPage } from "./pages/UsersPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { AuditPage } from "./pages/AuditPage";
+import { Loading } from "./components/ui";
 
 export function App() {
   const [loggedIn, setLoggedIn] = useState(() => session.get() !== null);
@@ -64,7 +65,7 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
       <Route
         path="tv"
         element={
-          <Suspense fallback={<p className="p-6 text-sm text-slate-500">Carregando…</p>}>
+          <Suspense fallback={<Loading />}>
             <MeGate>{(me) => <TvPage me={me} />}</MeGate>
           </Suspense>
         }
@@ -77,7 +78,7 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
         <Route
           path="mapa"
           element={
-            <Suspense fallback={<p className="text-sm text-slate-500">Carregando mapa…</p>}>
+            <Suspense fallback={<Loading rows={6} />}>
               <MapPage />
             </Suspense>
           }
@@ -88,7 +89,7 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
         <Route
           path="onus/:id"
           element={
-            <Suspense fallback={<p className="text-sm text-slate-500">Carregando…</p>}>
+            <Suspense fallback={<Loading />}>
               <OnuPage />
             </Suspense>
           }
@@ -107,7 +108,7 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
 
 function MeGate({ children }: { children: (me: Me) => ReactNode }) {
   const { data } = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/auth/me") });
-  return data ? <>{children(data)}</> : <p className="text-sm text-slate-500">Carregando…</p>;
+  return data ? <>{children(data)}</> : <Loading />;
 }
 
 type NavItem = { to: string; label: string; icon: IconName; end?: boolean; badge?: "alarms"; adminOnly?: boolean };

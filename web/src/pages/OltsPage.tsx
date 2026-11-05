@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { api, type Me, type Olt, type OltList, type OltSaved } from "../api";
 import { OltForm } from "../components/OltForm";
-import { Button, PlanUsageBar, StatusBadge } from "../components/ui";
+import { Button, EmptyState, Loading, PlanUsageBar, StatusBadge } from "../components/ui";
 
 type Editing = { mode: "new" } | { mode: "edit"; olt: Olt } | null;
 
@@ -52,17 +52,14 @@ export function OltsPage({ me }: { me: Me }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">OLTs</h1>
+          <p className="text-sm text-slate-500">Rede</p>
+          <h1 className="text-2xl font-bold tracking-tight">OLTs</h1>
           <p className="text-sm text-slate-500">Cadastro e status da coleta</p>
         </div>
         <div className="flex items-end gap-4">
           <PlanUsageBar used={usage.used} limit={usage.limit} />
           {isAdmin && (
-            <Button
-              onClick={() => setEditing({ mode: "new" })}
-              disabled={atLimit}
-              title={atLimit ? "limite do plano atingido" : undefined}
-            >
+            <Button onClick={() => setEditing({ mode: "new" })} disabled={atLimit} title={atLimit ? "limite do plano atingido" : undefined}>
               Nova OLT
             </Button>
           )}
@@ -84,7 +81,7 @@ export function OltsPage({ me }: { me: Me }) {
       )}
 
       {editing && (
-        <section className="rounded-xl border border-slate-200 bg-surface p-6 shadow-sm">
+        <section className="rounded-xl border border-slate-200 bg-surface p-6">
           <h2 className="mb-4 text-lg font-medium">{editing.mode === "new" ? "Nova OLT" : `Editar ${editing.olt.name}`}</h2>
           <OltForm
             key={editing.mode === "edit" ? editing.olt.id : "new"}
@@ -95,20 +92,18 @@ export function OltsPage({ me }: { me: Me }) {
         </section>
       )}
 
-      <section className="overflow-x-auto rounded-xl border border-slate-200 bg-surface shadow-sm">
+      <section className="overflow-x-auto rounded-xl border border-slate-200 bg-surface">
         {isPending ? (
-          <p className="p-6 text-sm text-slate-500">Carregando…</p>
+          <Loading rows={4} />
         ) : error ? (
           <p role="alert" className="p-6 text-sm text-red-700">
             Não foi possível carregar as OLTs: {error.message}
           </p>
         ) : data.items.length === 0 ? (
-          <div className="p-10 text-center">
-            <p className="font-medium">Nenhuma OLT cadastrada</p>
-            <p className="mt-1 text-sm text-slate-500">
-              Cadastre a primeira para a Lumio começar a coletar. Use "Testar conexão" para conferir o acesso SNMP antes de salvar.
-            </p>
-          </div>
+          <EmptyState
+            title="Nenhuma OLT cadastrada"
+            text={'Cadastre a primeira para a Lumio começar a coletar. Use "Testar conexão" para conferir o acesso SNMP antes de salvar.'}
+          />
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500 uppercase">

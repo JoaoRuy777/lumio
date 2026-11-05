@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { api, ApiError, type AppUser, type Me, type Role, type UserInput } from "../api";
-import { Button, Card, Field, inputClass, td, th } from "../components/ui";
+import { Button, Card, Field, inputClass, Loading, td, th } from "../components/ui";
 import { dateTime } from "../format";
 
 export const roleLabel: Record<Role, string> = { admin: "Administrador", operator: "Operador" };
@@ -32,13 +32,35 @@ function UserForm({ onCreated, onCancel }: { onCreated: (u: AppUser) => void; on
     <form onSubmit={submit} className="space-y-4 p-4" aria-label="Novo usuário">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Nome">
-          <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required minLength={2} placeholder="Maria Souza" />
+          <input
+            className={inputClass}
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+            minLength={2}
+            placeholder="Maria Souza"
+          />
         </Field>
         <Field label="E-mail" hint="é o login do usuário">
-          <input className={inputClass} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required placeholder="maria@seuprovedor.com.br" />
+          <input
+            className={inputClass}
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
+            placeholder="maria@seuprovedor.com.br"
+          />
         </Field>
         <Field label="Senha inicial" hint="mínimo de 8 caracteres; passe para a pessoa por um canal seguro">
-          <input className={inputClass} type="text" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} />
+          <input
+            className={inputClass}
+            type="text"
+            autoComplete="new-password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            required
+            minLength={8}
+          />
         </Field>
         <Field label="Papel" hint={roleHint[form.role]}>
           <select className={inputClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
@@ -80,7 +102,8 @@ export function UsersPage({ me }: { me: Me }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
+          <p className="text-sm text-slate-500">Gestão</p>
+          <h1 className="text-2xl font-bold tracking-tight">Usuários</h1>
           <p className="text-sm text-slate-500">Quem acessa o painel de {me.tenant_name}. Todos veem as mesmas OLTs, ONUs e alarmes.</p>
         </div>
         {isAdmin && !adding && <Button onClick={() => setAdding(true)}>Novo usuário</Button>}
@@ -88,7 +111,8 @@ export function UsersPage({ me }: { me: Me }) {
 
       {created && (
         <div role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          Usuário <strong>{created.name}</strong> criado. Ele entra com o e-mail <strong>{created.email}</strong> e a senha que você definiu.{" "}
+          Usuário <strong>{created.name}</strong> criado. Ele entra com o e-mail <strong>{created.email}</strong> e a senha que você
+          definiu.{" "}
           <button className="underline" onClick={() => setCreated(null)}>
             fechar
           </button>
@@ -110,7 +134,7 @@ export function UsersPage({ me }: { me: Me }) {
 
       <Card>
         {isPending ? (
-          <p className="p-6 text-sm text-slate-500">Carregando…</p>
+          <Loading rows={3} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

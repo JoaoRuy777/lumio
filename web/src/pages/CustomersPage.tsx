@@ -3,7 +3,7 @@ import { useState, type ChangeEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, ApiError, query, type Customer, type CustomerState, type ImportResult, type Me, type Page } from "../api";
 import { STATE_COLOR, STATE_LABEL } from "../mapStates";
-import { Button, Card, inputClass, Pager, td, th } from "../components/ui";
+import { Button, Card, EmptyState, inputClass, Loading, Pager, td, th } from "../components/ui";
 import { dbm } from "../format";
 
 const LIMIT = 50;
@@ -53,14 +53,22 @@ function Importer({ onDone }: { onDone: () => void }) {
     <Card title="Importar clientes">
       <div className="space-y-3 p-4 text-sm">
         <p className="text-slate-600">
-          CSV com uma linha por cliente. Obrigatórios: <b>serial</b> da ONU e <b>nome</b>. Opcionais: código, telefone,
-          endereço, bairro, cidade, plano, latitude e longitude (para o mapa). Separador ";" ou ","; quem já existe (mesmo
-          serial) é atualizado.
+          CSV com uma linha por cliente. Obrigatórios: <b>serial</b> da ONU e <b>nome</b>. Opcionais: código, telefone, endereço, bairro,
+          cidade, plano, latitude e longitude (para o mapa). Separador ";" ou ","; quem já existe (mesmo serial) é atualizado.
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <label className={`inline-flex cursor-pointer rounded-md bg-brand-600 px-3 py-2 font-medium text-white hover:bg-brand-800 ${busy ? "opacity-60" : ""}`}>
+          <label
+            className={`inline-flex cursor-pointer rounded-md bg-brand-600 px-3 py-2 font-medium text-white hover:bg-brand-800 ${busy ? "opacity-60" : ""}`}
+          >
             {busy ? "Importando…" : "Escolher arquivo CSV"}
-            <input type="file" accept=".csv,text/csv" className="sr-only" onChange={pick} disabled={busy} aria-label="Arquivo CSV de clientes" />
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="sr-only"
+              onChange={pick}
+              disabled={busy}
+              aria-label="Arquivo CSV de clientes"
+            />
           </label>
           <Button variant="secondary" onClick={template}>
             Baixar modelo
@@ -121,7 +129,8 @@ export function CustomersPage({ me }: { me: Me }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
+          <p className="text-sm text-slate-500">Atendimento</p>
+          <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
           <p className="text-sm text-slate-500">Ligados às ONUs pelo serial. Alarmes, e-mails e o mapa mostram quem foi afetado.</p>
         </div>
         <Link to="/mapa" className="text-sm font-medium text-brand-600 hover:underline">
@@ -145,7 +154,12 @@ export function CustomersPage({ me }: { me: Me }) {
           onChange={(e) => setText(e.target.value)}
           aria-label="Buscar cliente"
         />
-        <select className={`${inputClass} w-auto`} value={state ?? ""} onChange={(e) => update({ state: e.target.value || null })} aria-label="Estado">
+        <select
+          className={`${inputClass} w-auto`}
+          value={state ?? ""}
+          onChange={(e) => update({ state: e.target.value || null })}
+          aria-label="Estado"
+        >
           <option value="">Todos os estados</option>
           {(Object.keys(STATE_LABEL) as CustomerState[]).map((s) => (
             <option key={s} value={s}>
@@ -160,11 +174,16 @@ export function CustomersPage({ me }: { me: Me }) {
 
       <Card>
         {isPending ? (
-          <p className="p-6 text-sm text-slate-500">Carregando…</p>
+          <Loading rows={6} />
         ) : !data?.items.length ? (
-          <p className="px-4 py-10 text-center text-sm text-slate-500">
-            {q || state ? "Nenhum cliente encontrado." : "Nenhum cliente importado ainda."}
-          </p>
+          q || state ? (
+            <EmptyState icon="search" title="Nenhum cliente encontrado." text="Tente outro nome, código, serial ou bairro." />
+          ) : (
+            <EmptyState
+              title="Nenhum cliente importado ainda."
+              text="Importe a base em CSV (serial, nome, telefone, endereço, latitude e longitude) para ver quem cada alarme afeta."
+            />
+          )
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -183,9 +202,7 @@ export function CustomersPage({ me }: { me: Me }) {
                     <tr key={c.id}>
                       <td className={td}>
                         <p className="font-medium">{c.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {[c.code, c.plan].filter(Boolean).join(" · ")}
-                        </p>
+                        <p className="text-xs text-slate-500">{[c.code, c.plan].filter(Boolean).join(" · ")}</p>
                       </td>
                       <td className={td}>
                         <p>{c.address ?? "—"}</p>

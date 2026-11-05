@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 import { api, query, type Alarm, type Olt, type Page, type Pon } from "../api";
 import { AlarmTable } from "../components/AlarmTable";
-import { Card, StatusBadge, td, th } from "../components/ui";
+import { Card, Loading, StatusBadge, td, th } from "../components/ui";
 import { ago, dbm, RX_LIMIT_DBM } from "../format";
 
 export function OltPage() {
@@ -15,8 +15,13 @@ export function OltPage() {
     refetchInterval: 30_000,
   });
 
-  if (olt.isPending) return <p className="text-sm text-slate-500">Carregando…</p>;
-  if (olt.error) return <p role="alert" className="text-sm text-red-700">OLT não encontrada.</p>;
+  if (olt.isPending) return <Loading rows={5} />;
+  if (olt.error)
+    return (
+      <p role="alert" className="text-sm text-red-700">
+        OLT não encontrada.
+      </p>
+    );
   const o = olt.data;
   const vendor = o.vendor ? `${o.vendor[0].toUpperCase()}${o.vendor.slice(1)} ${o.model ?? ""}` : "fabricante não identificado";
 
@@ -27,11 +32,15 @@ export function OltPage() {
           ← OLTs
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{o.name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{o.name}</h1>
           <StatusBadge status={o.collection_status} />
         </div>
         <p className="text-sm text-slate-600">
-          {vendor} · <span className="font-mono text-xs">{o.host}:{o.snmp_port}</span> · última coleta {ago(o.last_poll_at)}
+          {vendor} ·{" "}
+          <span className="font-mono text-xs">
+            {o.host}:{o.snmp_port}
+          </span>{" "}
+          · última coleta {ago(o.last_poll_at)}
         </p>
         {o.last_error && o.collection_status !== "ok" && <p className="mt-1 text-sm text-red-700">{o.last_error}</p>}
       </div>
@@ -61,7 +70,9 @@ export function OltPage() {
                       {p.onus_online} / {p.onus_total}
                     </td>
                     <td className={`${td} text-right tabular-nums`}>{dbm(p.rx_avg)}</td>
-                    <td className={`${td} text-right tabular-nums ${p.rx_min !== null && p.rx_min < RX_LIMIT_DBM ? "font-medium text-red-700" : ""}`}>
+                    <td
+                      className={`${td} text-right tabular-nums ${p.rx_min !== null && p.rx_min < RX_LIMIT_DBM ? "font-medium text-red-700" : ""}`}
+                    >
                       {dbm(p.rx_min)}
                     </td>
                     <td className={`${td} text-right tabular-nums ${p.active_alarms ? "font-medium text-red-700" : "text-slate-400"}`}>

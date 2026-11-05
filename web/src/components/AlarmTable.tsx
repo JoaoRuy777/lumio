@@ -5,7 +5,7 @@ import { api, ApiError, query, type Alarm, type Page, type Severity } from "../a
 import { ago, dateTime, dbm, duration, kindLabel, location, stopwatch } from "../format";
 import { useNow } from "../useNow";
 import { useLive } from "../live";
-import { AlarmStatusBadge, Button, SeverityBadge, td, th } from "./ui";
+import { AlarmStatusBadge, Button, EmptyState, Loading, SeverityBadge, td, th } from "./ui";
 
 // faixa colorida no começo da linha: a severidade se lê de longe (com o texto ao lado)
 const STRIPE: Record<Severity, string> = {
@@ -61,7 +61,7 @@ export function Children({ parent }: { parent: Alarm }) {
     queryKey: ["alarms", "children", parent.id],
     queryFn: () => api<Page<Alarm>>(`/alarms${query({ parent_id: parent.id, status: "all", limit: 200 })}`),
   });
-  if (isPending) return <p className="px-4 py-2 text-sm text-slate-500">Carregando ONUs…</p>;
+  if (isPending) return <Loading rows={2} />;
   return (
     <div className="@container">
       <ul
@@ -125,9 +125,10 @@ export function AlarmTable({
 
   if (alarms.length === 0) {
     return (
-      <p className="px-4 py-10 text-center text-sm text-slate-500">
-        {emptyText ?? (history ? "Nenhum alarme no período." : "Nenhum alarme aberto. Rede normal.")}
-      </p>
+      <EmptyState
+        icon={history || emptyText ? "box" : "ok"}
+        title={emptyText ?? (history ? "Nenhum alarme no período." : "Nenhum alarme aberto. Rede normal.")}
+      />
     );
   }
 

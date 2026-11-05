@@ -134,7 +134,7 @@ export function StatTile({ label, value, detail, tone = "neutral", children }: {
   children?: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm" aria-label={label}>
+    <section className="rounded-xl border border-slate-200 bg-surface p-4" aria-label={label}>
       <h2 className="text-sm text-slate-500">{label}</h2>
       <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${{ bad: "text-red-700", warn: "text-amber-700", neutral: "text-slate-900" }[tone]}`}>
         {value}
@@ -182,3 +182,53 @@ export function Card({ title, actions, children, className = "" }: { title?: Rea
 
 export const th = "px-4 py-3 text-left text-xs font-medium tracking-wide text-slate-500 uppercase";
 export const td = "px-4 py-3";
+
+/** Esqueleto de carregamento (o leitor de tela ouve "Carregando…"). */
+export function Loading({ rows = 3, className = "" }: { rows?: number; className?: string }) {
+  return (
+    <div className={`space-y-3 p-4 ${className}`} aria-busy="true" role="status">
+      <span className="sr-only">Carregando…</span>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3" aria-hidden>
+          <div className="h-3 w-24 animate-pulse rounded bg-slate-200" />
+          <div className="h-3 flex-1 animate-pulse rounded bg-slate-100" style={{ maxWidth: `${70 - i * 12}%` }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const EMPTY_ICON = {
+  ok: "M20 6 9 17l-5-5",
+  search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5",
+  box: "M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8",
+};
+
+/** Estado vazio com ícone, explicação e (opcional) o próximo passo. */
+export function EmptyState({
+  title,
+  text,
+  action,
+  icon = "box",
+}: {
+  title: string;
+  text?: ReactNode;
+  action?: ReactNode;
+  icon?: keyof typeof EMPTY_ICON;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+      <span
+        className={`flex size-11 items-center justify-center rounded-full ${icon === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
+        aria-hidden
+      >
+        <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d={EMPTY_ICON[icon]} />
+        </svg>
+      </span>
+      <p className="font-medium text-slate-800">{title}</p>
+      {text && <p className="max-w-md text-sm text-slate-500">{text}</p>}
+      {action && <div className="mt-2">{action}</div>}
+    </div>
+  );
+}
