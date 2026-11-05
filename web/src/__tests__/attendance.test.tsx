@@ -93,10 +93,12 @@ describe("relatório de atendimento", () => {
     });
     renderWithQuery(<ReportsPage />);
     const section = await screen.findByRole("region", { name: "Atendimento da equipe" });
-    await within(section).findByText("Ana");
+    await within(section).findByRole("cell", { name: "Ana" });
     expect(within(section).getByRole("region", { name: "TMA" })).toHaveTextContent("1 h 05 min");
     expect(within(section).getByRole("region", { name: "TME" })).toHaveTextContent("4 min");
-    const ana = within(section).getByText("Ana").closest("tr")!;
+    const ana = within(section).getByRole("cell", { name: "Ana" }).closest("tr")!;
+    // TMA por operador também em barras
+    expect(within(section).getByRole("list", { name: "TMA por operador" })).toHaveTextContent("Ana");
     expect(ana).toHaveTextContent("7");
     expect(ana).toHaveTextContent("6 h 40 min");
     expect(within(section).getByText("Rompimento por terceiros (obra, veículo)")).toBeInTheDocument();

@@ -69,6 +69,14 @@ async def test_alarmes_e_mttr(client, seeded):
     assert (rep["total"], rep["open"], rep["mttr_min"]) == (3, 1, 21.0)
     assert rep["by_kind"] == {"onu_offline": 2, "olt_unreachable": 1}
     assert [i["duration_min"] for i in rep["items"]] == [30.0, 12.0, None]
+    # linha do tempo por hora (período de 2 h), no horário de Brasília
+    tl = rep["timeline"]
+    assert tl["bucket"] == "hour"
+    assert [(p["t"][11:16], p["critical"], p["major"], p["other"]) for p in tl["points"]] == [("07:00", 0, 0, 1), ("08:00", 1, 0, 1)]
+    week = (await client.get("/api/reports/alarms", headers=seeded,
+                             params={"from": "2026-11-01T03:00:00Z", "to": "2026-11-08T03:00:00Z"})).json()["timeline"]
+    assert week["bucket"] == "day" and len(week["points"]) == 7
+    assert [p["t"][:10] for p in week["points"] if p["critical"] + p["major"] + p["other"]] == ["2026-11-03", "2026-11-04"]
 
 
 async def test_csv_abre_no_excel_brasileiro(client, seeded):
