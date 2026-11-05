@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
-import { api, query, type Alarm, type Olt, type Page, type Pon } from "../api";
+import { api, query, type Alarm, type ChassisPon, type Olt, type Page, type Pon } from "../api";
 import { AlarmTable } from "../components/AlarmTable";
+import { OltChassis } from "../components/OltChassis";
 import { Card, Loading, StatusBadge, td, th } from "../components/ui";
 import { ago, dbm, RX_LIMIT_DBM } from "../format";
 
@@ -9,6 +10,11 @@ export function OltPage() {
   const { id } = useParams();
   const olt = useQuery({ queryKey: ["olts", id], queryFn: () => api<Olt>(`/olts/${id}`), refetchInterval: 30_000 });
   const pons = useQuery({ queryKey: ["pons", id], queryFn: () => api<Pon[]>(`/olts/${id}/pons`), refetchInterval: 30_000 });
+  const chassis = useQuery({
+    queryKey: ["chassis", id],
+    queryFn: () => api<ChassisPon[]>(`/olts/${id}/chassis`),
+    refetchInterval: 30_000,
+  });
   const alarms = useQuery({
     queryKey: ["alarms", "olt", id],
     queryFn: () => api<Page<Alarm>>(`/alarms${query({ olt_id: id })}`),
@@ -45,9 +51,13 @@ export function OltPage() {
         {o.last_error && o.collection_status !== "ok" && <p className="mt-1 text-sm text-red-700">{o.last_error}</p>}
       </div>
 
+      <Card title="Chassi" actions={<span className="text-xs text-slate-500">passe o mouse numa ONU para ver o cliente e o sinal</span>}>
+        {chassis.data ? <OltChassis pons={chassis.data} oltId={o.id} /> : <Loading rows={4} />}
+      </Card>
+
       <Card title="Alarmes abertos">{alarms.data && <AlarmTable alarms={alarms.data.items} />}</Card>
 
-      <Card title={`Portas PON (${pons.data?.length ?? "…"})`}>
+      <Card title={`Sinal por PON (${pons.data?.length ?? "…"})`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">

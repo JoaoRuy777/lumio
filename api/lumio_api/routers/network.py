@@ -8,7 +8,9 @@ from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel
 
+from .. import trend
 from ..deps import TenantDb, User
 from ..schemas import OnuOut, OnuPage, PonOut, Reading, Readings
 
@@ -30,6 +32,68 @@ RAW_STEP = timedelta(minutes=5)          # intervalo padrão da coleta de potên
 
 def to_onu(row: asyncpg.Record) -> OnuOut:
     return OnuOut(**{k: row[k] for k in OnuOut.model_fields})
+
+
+ChassisState = Literal["online", "offline", "low", "trend", "unknown"]
+
+
+class ChassisOnu(BaseModel):
+    id: UUID
+    onu_index: int
+    serial: str | None
+    state: ChassisState
+    rx_dbm: float | None
+    customer: str | None
+
+
+class ChassisPon(BaseModel):
+    id: UUID
+    name: str
+    onus: list[ChassisOnu]
+    fiber_cut: bool              # rompimento de fibra aberto nesta PON
+    in_maintenance: bool
+
+
+@router.get("/olts/{olt_id}/chassis", response_model=list[ChassisPon],
+            summary="Visão de chassi: cada PON com suas ONUs e o estado de cada uma")
+async def olt_chassis(olt_id: UUID, user: User, db: TenantDb) -> list[ChassisPon]:
+    if not await db.fetchval("SELECT 1 FROM olts WHERE id = $1", olt_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "OLT não encontrada")
+    at_risk = {r["onu_id"] for r in await db.fetch(f"SELECT onu_id FROM ({trend.TREND_SQL}) t")}
+    rows = await db.fetch(
+        """
+        SELECT p.id AS pon_id, p.name AS pon,
+               EXISTS (SELECT 1 FROM alarms a WHERE a.pon_id = p.id AND a.kind = 'pon_fiber_cut'
+                       AND a.status <> 'cleared') AS fiber_cut,
+               EXISTS (SELECT 1 FROM maintenance_windows m WHERE m.olt_id = p.olt_id AND m.cancelled_at IS NULL
+                       AND m.starts_at <= now() AND m.ends_at > now() AND (m.pon_id IS NULL OR m.pon_id = p.id))
+                   AS in_maintenance,
+               n.id, n.onu_index, n.serial, n.online, n.rx_dbm, c.name AS customer
+        FROM pon_ports p
+        LEFT JOIN onus n ON n.pon_id = p.id
+        LEFT JOIN customers c ON c.tenant_id = n.tenant_id AND c.onu_serial = n.serial
+        WHERE p.olt_id = $1
+        ORDER BY p.name, n.onu_index
+        """, olt_id)
+    pons: dict[UUID, ChassisPon] = {}
+    for r in rows:
+        pon = pons.setdefault(r["pon_id"], ChassisPon(id=r["pon_id"], name=r["pon"], onus=[], fiber_cut=r["fiber_cut"],
+                                                      in_maintenance=r["in_maintenance"]))
+        if r["id"] is None:
+            continue
+        if r["online"] is None:
+            state = "unknown"
+        elif not r["online"]:
+            state = "offline"
+        elif r["rx_dbm"] is not None and r["rx_dbm"] < trend.RX_LIMIT_DBM:
+            state = "low"
+        elif r["id"] in at_risk:
+            state = "trend"
+        else:
+            state = "online"
+        pon.onus.append(ChassisOnu(id=r["id"], onu_index=r["onu_index"], serial=r["serial"], state=state,
+                                   rx_dbm=r["rx_dbm"], customer=r["customer"]))
+    return list(pons.values())
 
 
 @router.get("/olts/{olt_id}/pons", response_model=list[PonOut], summary="Portas PON da OLT com resumo das ONUs")

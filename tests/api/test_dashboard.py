@@ -202,3 +202,23 @@ async def test_historico_isolado_por_provedor(client, net):
     resp = await client.get("/api/overview/history", headers=other)
     assert resp.status_code == 200
     assert all(p["open"] == 0 and p["onus_offline"] == 0 and p["critical"] == 0 for p in resp.json()["hours"])
+
+
+async def test_chassi_da_olt(client, net, pool):
+    olt = net["olt_id"]
+    pons = (await get(client, net, f"/olts/{olt}/chassis"))
+    assert [p["name"] for p in pons] == ["0/1/0", "0/1/1"]
+    assert all(len(p["onus"]) == 8 and {o["state"] for o in p["onus"]} == {"online"} for p in pons)
+    assert [o["onu_index"] for o in pons[0]["onus"]] == list(range(8))
+
+    await net["fiber_cut"]()
+    # uma ONU com sinal baixo na PON que segue no ar
+    await pool.execute("UPDATE onus SET rx_dbm = -28.5 WHERE onu_index = 2 AND pon_id = $1", pons[0]["id"])
+    pons = (await get(client, net, f"/olts/{olt}/chassis"))
+    cut = next(p for p in pons if p["name"] == "0/1/1")
+    ok = next(p for p in pons if p["name"] == "0/1/0")
+    assert cut["fiber_cut"] is True and {o["state"] for o in cut["onus"]} == {"offline"}
+    assert ok["fiber_cut"] is False and [o["state"] for o in ok["onus"]].count("low") == 1
+
+    other = await signup(client, company="Provedor B", email="admin@b.com.br")
+    assert (await client.get(f"/api/olts/{olt}/chassis", headers=other)).status_code == 404
