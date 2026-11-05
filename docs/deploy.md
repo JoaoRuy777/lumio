@@ -235,6 +235,25 @@ ms, e cada alarme levou ~2 s para gravar (no Postgres local, ~10 ms). Num
 servidor em São Paulo, na mesma região do banco, a ida e volta deve cair para
 poucos milissegundos.
 
+## Assistente de IA (Google Gemini)
+
+O painel tem um assistente (botão **Assistente** no topo) que responde sobre a
+rede consultando os dados reais do provedor, só leitura.
+
+1. Gere uma chave grátis em [aistudio.google.com](https://aistudio.google.com)
+   (Get API key). **Não ative faturamento** no projeto: assim ele fica na camada
+   gratuita.
+2. Na Vercel: projeto → Settings → Environment Variables → `GEMINI_API_KEY`
+   (Production) e faça um redeploy. Em Docker/VPS, a mesma variável no `.env`.
+3. Opcional: `LUMIO_AI_MODELS` com os modelos em ordem de preferência; se um
+   estiver sobrecarregado ou sem cota, o próximo é tentado.
+
+Privacidade (LGPD): nome, telefone e endereço de clientes e nomes de pessoas
+viram marcadores (`[CLIENTE_1]`) antes de sair para o Google; a API troca pelos
+valores reais só na resposta para quem perguntou. A pergunta não vai para o log
+de auditoria (só quais consultas foram feitas). Limite: 40 perguntas por
+usuário por dia.
+
 ## Checklist de segurança
 
 - [ ] `.env` gerado pelo `gen-env.sh`, com permissão 600 e cópia guardada fora do servidor
