@@ -43,6 +43,8 @@ async def overview(user: User, db: TenantDb) -> Overview:
         customers_offline=await db.fetchval(
             "SELECT count(*) FROM customers c JOIN onus n ON n.tenant_id = c.tenant_id AND n.serial = c.onu_serial "
             "WHERE n.online IS FALSE"),
+        maintenance_active=await db.fetchval(
+            "SELECT count(*) FROM maintenance_windows WHERE cancelled_at IS NULL AND starts_at <= now() AND ends_at > now()"),
         alarms=alarms,
         recent_alarms=recent.items,
     )
