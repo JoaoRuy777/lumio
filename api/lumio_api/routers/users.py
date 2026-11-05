@@ -9,8 +9,9 @@ from __future__ import annotations
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 
+from ..audit import audit
 from ..deps import Admin, TenantDb, User
 from ..schemas import UserIn, UserList, UserOut
 from ..security import hash_password
@@ -28,7 +29,7 @@ async def list_users(user: User, db: TenantDb) -> UserList:
 
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED,
              summary="Cria um usuário no provedor (administrador: tudo; operador: vê tudo, não altera cadastros)")
-async def create_user(body: UserIn, user: Admin, db: TenantDb) -> UserOut:
+async def create_user(body: UserIn, user: Admin, db: TenantDb, request: Request) -> UserOut:
     try:
         async with db.transaction():            # savepoint: o erro não derruba a transação da requisição
             row = await db.fetchrow(
@@ -37,13 +38,18 @@ async def create_user(body: UserIn, user: Admin, db: TenantDb) -> UserOut:
                 user.tenant_id, body.email, body.name.strip(), hash_password(body.password), body.role)
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, "e-mail já cadastrado")
+    await audit(db, user.tenant_id, user.user_id, "user.create", request=request, target_type="user",
+                target_id=row["id"], label=f"{row['name']} <{row['email']}>", details={"role": body.role})
     return UserOut(**row)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Remove um usuário do provedor")
-async def delete_user(user_id: UUID, user: Admin, db: TenantDb) -> Response:
+async def delete_user(user_id: UUID, user: Admin, db: TenantDb, request: Request) -> Response:
     if user_id == user.user_id:
         raise HTTPException(status.HTTP_409_CONFLICT, "você não pode remover o próprio usuário")
-    if await db.execute("DELETE FROM users WHERE id = $1", user_id) == "DELETE 0":
+    gone = await db.fetchrow("DELETE FROM users WHERE id = $1 RETURNING name, email, role", user_id)
+    if gone is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "usuário não encontrado")
+    await audit(db, user.tenant_id, user.user_id, "user.delete", request=request, target_type="user",
+                target_id=user_id, label=f"{gone['name']} <{gone['email']}>", details={"role": gone["role"]})
     return Response(status_code=status.HTTP_204_NO_CONTENT)
