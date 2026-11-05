@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { EscalationRules } from "../components/EscalationRules";
 import { Fragment, useState, type FormEvent } from "react";
 import { api, ApiError, type Channel, type ChannelCreated, type ChannelType, type Delivery, type Me, type Severity } from "../api";
 import { Button, Card, Field, inputClass, SeverityIcon, td, th } from "../components/ui";
@@ -16,7 +17,9 @@ const deliveryLabel: Record<Delivery["status"], [string, string]> = {
 
 function minSeverityText(s: Severity) {
   const i = SEVERITIES.indexOf(s);
-  return SEVERITIES.slice(0, i + 1).map((x) => severityLabel[x].toLowerCase()).join(", ");
+  return SEVERITIES.slice(0, i + 1)
+    .map((x) => severityLabel[x].toLowerCase())
+    .join(", ");
 }
 
 function DeliveryStatus({ d }: { d: Delivery }) {
@@ -30,7 +33,13 @@ function DeliveryStatus({ d }: { d: Delivery }) {
 }
 
 function ChannelForm({ onCreated, onCancel }: { onCreated: (c: ChannelCreated) => void; onCancel: () => void }) {
-  const [form, setForm] = useState({ name: "", type: "email" as ChannelType, target: "", min_severity: "major" as Severity, notify_clear: true });
+  const [form, setForm] = useState({
+    name: "",
+    type: "email" as ChannelType,
+    target: "",
+    min_severity: "major" as Severity,
+    notify_clear: true,
+  });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -51,15 +60,28 @@ function ChannelForm({ onCreated, onCancel }: { onCreated: (c: ChannelCreated) =
     <form onSubmit={submit} className="space-y-4 p-4" aria-label="Novo canal">
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Nome do canal">
-          <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="NOC por e-mail" />
+          <input
+            className={inputClass}
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+            placeholder="NOC por e-mail"
+          />
         </Field>
         <Field label="Tipo">
-          <select className={inputClass} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as ChannelType, target: "" })}>
+          <select
+            className={inputClass}
+            value={form.type}
+            onChange={(e) => setForm({ ...form, type: e.target.value as ChannelType, target: "" })}
+          >
             <option value="email">E-mail</option>
             <option value="webhook">Webhook</option>
           </select>
         </Field>
-        <Field label={form.type === "email" ? "E-mail" : "URL do webhook"} hint={form.type === "webhook" ? "recebe um POST JSON assinado (HMAC-SHA256)" : undefined}>
+        <Field
+          label={form.type === "email" ? "E-mail" : "URL do webhook"}
+          hint={form.type === "webhook" ? "recebe um POST JSON assinado (HMAC-SHA256)" : undefined}
+        >
           <input
             className={inputClass}
             type={form.type === "email" ? "email" : "url"}
@@ -72,7 +94,11 @@ function ChannelForm({ onCreated, onCancel }: { onCreated: (c: ChannelCreated) =
       </div>
       <div className="flex flex-wrap items-end gap-6">
         <Field label="Avisar a partir de" hint={`recebe: ${minSeverityText(form.min_severity)}`}>
-          <select className={inputClass} value={form.min_severity} onChange={(e) => setForm({ ...form, min_severity: e.target.value as Severity })}>
+          <select
+            className={inputClass}
+            value={form.min_severity}
+            onChange={(e) => setForm({ ...form, min_severity: e.target.value as Severity })}
+          >
             {SEVERITIES.map((s) => (
               <option key={s} value={s}>
                 {severityLabel[s]}
@@ -119,7 +145,9 @@ function Deliveries({ channel }: { channel: Channel }) {
               {ago(d.created_at)}
             </td>
             <td className="px-4 py-2">
-              {d.event === "test" ? "Mensagem de teste" : `${d.event === "cleared" ? "Normalizou: " : ""}${d.alarm_kind ? kindLabel[d.alarm_kind] : "alarme"}`}
+              {d.event === "test"
+                ? "Mensagem de teste"
+                : `${d.event === "cleared" ? "Normalizou: " : ""}${d.alarm_kind ? kindLabel[d.alarm_kind] : "alarme"}`}
             </td>
             <td className="px-4 py-2">
               <DeliveryStatus d={d} />
@@ -199,13 +227,11 @@ export function NotificationsPage({ me }: { me: Me }) {
         </Card>
       )}
 
-      <Card>
+      <Card title="Canais">
         {isPending ? (
           <p className="p-6 text-sm text-slate-500">Carregando…</p>
         ) : !data?.length ? (
-          <p className="px-4 py-10 text-center text-sm text-slate-500">
-            Nenhum canal ainda. Sem canal, os alarmes aparecem só no painel.
-          </p>
+          <p className="px-4 py-10 text-center text-sm text-slate-500">Nenhum canal ainda. Sem canal, os alarmes aparecem só no painel.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -277,6 +303,8 @@ export function NotificationsPage({ me }: { me: Me }) {
           </div>
         )}
       </Card>
+
+      <EscalationRules channels={data ?? []} isAdmin={isAdmin} />
     </div>
   );
 }

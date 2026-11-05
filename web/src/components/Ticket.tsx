@@ -72,6 +72,11 @@ const timelineText: Record<TimelineItem["kind"], (t: TimelineItem) => ReactNode>
     </>
   ),
   notified: (t) => `Aviso de ${t.body} enviado para o canal "${t.target}"`,
+  escalated: (t) => (
+    <>
+      <b>Escalonado</b> para "{t.target}" ({t.body})
+    </>
+  ),
   cleared: () => "Rede normalizada (a falha passou)",
 };
 
@@ -83,6 +88,7 @@ const dotColor: Record<TimelineItem["kind"], string> = {
   closed: "bg-emerald-500",
   reopened: "bg-amber-500",
   notified: "bg-slate-300",
+  escalated: "bg-orange-500",
   cleared: "bg-emerald-500",
 };
 

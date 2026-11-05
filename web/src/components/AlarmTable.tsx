@@ -203,6 +203,14 @@ export function AlarmTable({
                 )}
                 <td className={td}>
                   <AlarmStatusBadge status={a.status} />
+                  {a.escalated_at && !a.assigned_to && a.status !== "cleared" && (
+                    <span
+                      className="ml-1.5 inline-flex rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-600/20 ring-inset"
+                      title="Ninguém assumiu a tempo: o aviso foi escalado"
+                    >
+                      Escalonado
+                    </span>
+                  )}
                   {a.maintenance_id && (
                     <span
                       className="ml-1.5 inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 ring-1 ring-sky-600/20 ring-inset"

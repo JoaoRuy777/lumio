@@ -200,6 +200,7 @@ export interface Alarm {
   affected_customers: number;
   maintenance_id?: string | null;
   maintenance_reason?: string | null;
+  escalated_at?: string | null;
 }
 
 export interface Page<T> {
@@ -377,7 +378,7 @@ export type Cause =
 
 export interface TimelineItem {
   at: string;
-  kind: "opened" | "assigned" | "transferred" | "note" | "closed" | "reopened" | "notified" | "cleared";
+  kind: "opened" | "assigned" | "transferred" | "note" | "closed" | "reopened" | "notified" | "escalated" | "cleared";
   actor: string | null;
   target: string | null;
   body: string | null;
@@ -492,4 +493,19 @@ export interface MaintenanceWindow {
   cancelled_at: string | null;
   state: MaintenanceState;
   alarms_silenced: number;
+}
+
+// ------------------------------------------------------------------ escalonamento
+
+export interface EscalationRule {
+  id: string;
+  name: string;
+  min_severity: Severity;
+  after_minutes: number;
+  channel_id: string;
+  channel_name: string;
+  channel_type: ChannelType;
+  enabled: boolean;
+  created_at: string;
+  escalations_30d: number;
 }
