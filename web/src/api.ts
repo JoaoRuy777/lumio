@@ -211,8 +211,19 @@ export interface Overview {
   rx_low: number;
   rx_trend: number;
   customers: number;
+  customers_offline?: number;
   alarms: Record<Severity | "total", number>;
   recent_alarms: Alarm[];
+}
+
+/** Uma hora das últimas 24 h (mini-gráficos da visão geral). */
+export interface HourPoint {
+  t: string;
+  critical: number;
+  major: number;
+  other: number;
+  open: number;
+  onus_offline: number;
 }
 
 export interface Pon {

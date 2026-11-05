@@ -53,6 +53,7 @@ async def test_rompimento_mostra_clientes_e_mapa(client, net):
     await net["fiber_cut"]()
     [cut] = (await get(client, net, "/alarms"))["items"]
     assert cut["affected_customers"] == 8
+    assert (await get(client, net, "/overview"))["customers_offline"] == 8
     [child] = (await get(client, net, "/alarms", parent_id=cut["id"], limit=1))["items"]
     assert child["customer_name"].startswith("Cliente 0/1/1")
 
