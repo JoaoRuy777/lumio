@@ -26,16 +26,36 @@ describe("visão geral", () => {
     mockApi({
       "GET /overview": () => ({ json: overview() }),
       "GET /olts": () => ({ json: { items: [makeOlt()], usage: { used: 1, limit: 2 } } }),
+      "GET /overview/history": () => ({ json: { hours } }),
+      "GET /reports/attendance": () => ({
+        json: { summary: { tickets: 2, assumed: 2, unattended: 0, closed: 1, in_progress: 1, tme_min: 4, tma_min: 18, tma_max_min: 18, sla_assume_min: 15, assumed_within_sla_pct: 100 }, operators: [], causes: [] },
+      }),
     });
+    const hours = Array.from({ length: 24 }, (_, i) => ({
+      t: new Date(Date.now() - (23 - i) * 3_600_000).toISOString(),
+      critical: i === 23 ? 1 : 0,
+      major: 0,
+      other: i === 20 ? 2 : 0,
+      open: i >= 20 ? 3 : 0,
+      onus_offline: i === 23 ? 16 : 0,
+    }));
     renderWithQuery(<OverviewPage />);
 
     const alarms = await screen.findByRole("region", { name: "Alarmes abertos" });
     expect(within(alarms).getByText("3")).toBeInTheDocument();
-    expect(within(alarms).getByText(/1 crítico/)).toBeInTheDocument();
+    expect(within(alarms).getAllByText(/1 crítico/)).toHaveLength(2); // selo + lista por severidade
+    // tendência das últimas 24 h nos cartões
+    expect(await within(alarms).findByRole("img", { name: "Alarmes em aberto nas últimas 24 h" })).toBeInTheDocument();
     const onus = screen.getByRole("region", { name: "ONUs online" });
     expect(within(onus).getByText("112 / 128")).toBeInTheDocument();
+    expect(within(onus).getByText("87,5 %")).toBeInTheDocument();
     expect(within(onus).getByRole("link", { name: "16 offline" })).toHaveAttribute("href", "/onus?status=offline");
-    expect(within(screen.getByRole("region", { name: "OLTs coletando" })).getByText("1 sem resposta")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Clientes afetados" })).getByRole("link", { name: "importar clientes" })).toHaveAttribute("href", "/clientes");
+    expect(within(screen.getByRole("region", { name: "OLTs coletando" })).getAllByText("1 sem resposta")).not.toHaveLength(0);
+    // alarmes por hora (também em tabela para leitor de tela) e indicadores de atendimento do dia
+    const perHour = screen.getByRole("table", { name: "Alarmes abertos por hora" });
+    expect(within(perHour).getAllByRole("row")).toHaveLength(25);
+    expect(await screen.findByText("18 min")).toBeInTheDocument();
     // lista de alarmes recentes: severidade com texto, tipo e local
     expect(screen.getByText("Rompimento de fibra")).toBeInTheDocument();
     expect(screen.getByText("olt-centro · PON 0/1/2")).toBeInTheDocument();

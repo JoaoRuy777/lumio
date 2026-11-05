@@ -59,6 +59,7 @@ export function NetworkMap({
   onNavigate,
   className = "h-[520px]",
   interactive = true,
+  bare = false,
 }: {
   data: MapData;
   visible: Set<CustomerState>;
@@ -66,12 +67,16 @@ export function NetworkMap({
   onNavigate?: (path: string) => void;
   className?: string;
   interactive?: boolean;
+  /** sem borda/canto próprios (quando já está dentro de um cartão) */
+  bare?: boolean;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const tiles = useRef<L.TileLayer | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
   const fitted = useRef(false);
+  const bounds = useRef<L.LatLngBounds | null>(null);
+  const touched = useRef(false); // o usuário já mexeu no mapa: não reenquadra mais
 
   // cria o mapa uma vez
   useEffect(() => {
@@ -96,7 +101,18 @@ export function NetworkMap({
     };
     el.current.addEventListener("click", onClick);
     const node = el.current;
+    // o quadro muda de tamanho (layout carregando, gaveta, tela cheia): ajusta e reenquadra
+    const touch = () => (touched.current = true);
+    m.on("dragstart", touch);
+    node.addEventListener("wheel", touch, { passive: true });
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      m.invalidateSize();
+      if (bounds.current && !touched.current) m.fitBounds(bounds.current, { padding: [30, 30], maxZoom: 15 });
+    });
+    ro?.observe(node);
     return () => {
+      ro?.disconnect();
+      node.removeEventListener("wheel", touch);
       node.removeEventListener("click", onClick);
       m.remove();
       map.current = null;
@@ -162,7 +178,8 @@ export function NetworkMap({
         ...data.olts.filter((o) => o.lat != null).map((o) => [o.lat!, o.lon!] as [number, number]),
       ];
       if (pts.length) {
-        m.fitBounds(L.latLngBounds(pts), { padding: [30, 30], maxZoom: 15 });
+        bounds.current = L.latLngBounds(pts);
+        m.fitBounds(bounds.current, { padding: [30, 30], maxZoom: 15 });
         fitted.current = true;
       }
     }
@@ -172,5 +189,5 @@ export function NetworkMap({
     if (focus && map.current) map.current.flyTo([focus.lat, focus.lon], 17, { duration: 0.8 });
   }, [focus]);
 
-  return <div ref={el} className={`z-0 w-full overflow-hidden rounded-xl border border-slate-200 ${className}`} role="region" aria-label="Mapa da rede" />;
+  return <div ref={el} className={`z-0 w-full overflow-hidden ${bare ? "" : "rounded-xl border border-slate-200"} ${className}`} role="region" aria-label="Mapa da rede" />;
 }

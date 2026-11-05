@@ -166,12 +166,12 @@ export function Pager({ total, limit, offset, onChange }: { total: number; limit
   );
 }
 
-export function Card({ title, actions, children }: { title?: ReactNode; actions?: ReactNode; children: ReactNode }) {
+export function Card({ title, actions, children, className = "" }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-surface shadow-sm">
+    <section className={`overflow-hidden rounded-xl border border-slate-200 bg-surface ${className}`}>
       {(title || actions) && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
-          {title && <h2 className="font-medium">{title}</h2>}
+          {title && <h2 className="font-semibold">{title}</h2>}
           {actions}
         </header>
       )}
