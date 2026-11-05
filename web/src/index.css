@@ -4,11 +4,18 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  --color-brand-50: #eef6ff;
-  --color-brand-500: #2f7cf6;
-  --color-brand-600: #1f63d6;
-  --color-brand-700: #1a4fab;
-  --color-brand-800: #173f88;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* marca: verde-água da luz na fibra */
+  --color-brand-50: #effcf9;
+  --color-brand-100: #ccfbf1;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0f766e;
+  --color-brand-700: #0f6b63;
+  --color-brand-800: #134e4a;
+  /* logo (fora do menu escuro): fibra e ponto de luz */
+  --color-logo-fiber: #0e9f8e;
+  --color-logo-spark: #0b7f72;
   /* fundo de cartões, tabelas e campos */
   --color-surface: #ffffff;
 }
@@ -21,7 +28,7 @@
  */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-surface: #131c2e;
+  --color-surface: #111827;
 
   --color-slate-50: #0b1120;
   --color-slate-100: #1a2336;
@@ -34,9 +41,14 @@
   --color-slate-800: #dde3ec;
   --color-slate-900: #f1f4f8;
 
-  --color-brand-50: #15284d;
-  --color-brand-600: #3a7bec;
-  --color-brand-700: #93bbff;
+  --color-brand-50: #0f2a29;
+  --color-brand-100: #134e4a;
+  --color-brand-500: #2dd4bf;
+  --color-brand-600: #0f8277;
+  --color-brand-700: #5eead4;
+  --color-brand-800: #0b5f57;
+  --color-logo-fiber: #2dd4bf;
+  --color-logo-spark: #f0fdfa;
 
   --color-red-50: #2b1519;
   --color-red-200: #5c242b;
@@ -60,6 +72,12 @@
 
 body {
   @apply bg-slate-50 text-slate-800 antialiased;
+}
+
+/* no escuro, o brand-600 é fundo de botão (texto branco); como cor de link
+   ele fica apagado, então links usam o tom claro da marca */
+[data-theme="dark"] .text-brand-600 {
+  color: var(--color-brand-700);
 }
 
 /* ------------------------------------------------------------------ mapa (Leaflet) */

@@ -151,7 +151,7 @@ def describe(n: asyncpg.Record) -> tuple[str, str, dict]:
 
 
 SEVERITY_COLOR = {"critical": "#dc2626", "major": "#ea580c", "minor": "#ca8a04", "warning": "#2563eb"}
-CLEARED_COLOR, TEST_COLOR = "#16a34a", "#1d4ed8"
+CLEARED_COLOR, TEST_COLOR = "#16a34a", "#0f766e"
 
 
 def html_email(n: asyncpg.Record, subject: str, text: str, url: str) -> str:
@@ -179,7 +179,7 @@ def html_email(n: asyncpg.Record, subject: str, text: str, url: str) -> str:
         else:
             rows.append(f'<tr><td colspan="2" style="padding:6px 0;color:#0f172a">{escape(line)}</td></tr>')
     rows = "".join(rows)
-    button = (f'<p style="margin:24px 0 0"><a href="{escape(url)}" style="background:#1d4ed8;color:#ffffff;'
+    button = (f'<p style="margin:24px 0 0"><a href="{escape(url)}" style="background:#0f766e;color:#ffffff;'
               f'text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;display:inline-block">'
               f'Abrir no painel</a></p>') if url else ""
     return f"""<!doctype html>
@@ -187,7 +187,7 @@ def html_email(n: asyncpg.Record, subject: str, text: str, url: str) -> str:
 <table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0">
 <tr><td style="background:{color};height:6px"></td></tr>
 <tr><td style="padding:24px 28px">
-<p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#1d4ed8">Lumio</p>
+<p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#0f766e">Lumio</p>
 <p style="margin:0 0 20px;font-size:12px;color:#64748b">Monitoramento de redes GPON · {escape(n["tenant_name"])}</p>
 <span style="display:inline-block;background:{color};color:#ffffff;font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:4px">{badge}</span>
 <h1 style="margin:10px 0 16px;font-size:18px;line-height:1.35;color:#0f172a">{title}</h1>
@@ -206,12 +206,12 @@ def html_reset(name: str, tenant: str, url: str) -> str:
 <table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0">
 <tr><td style="background:{TEST_COLOR};height:6px"></td></tr>
 <tr><td style="padding:24px 28px;font-size:14px;color:#0f172a;line-height:1.55">
-<p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#1d4ed8">Lumio</p>
+<p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#0f766e">Lumio</p>
 <p style="margin:0 0 20px;font-size:12px;color:#64748b">Monitoramento de redes GPON · {escape(tenant)}</p>
 <h1 style="margin:0 0 12px;font-size:18px">Redefinição de senha</h1>
 <p style="margin:0 0 8px">Olá, {escape(name)}. Recebemos um pedido para redefinir a sua senha.</p>
 <p style="margin:0">O link vale por <strong>1 hora</strong> e só funciona uma vez.</p>
-<p style="margin:24px 0"><a href="{escape(url)}" style="background:#1d4ed8;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;display:inline-block">Criar senha nova</a></p>
+<p style="margin:24px 0"><a href="{escape(url)}" style="background:#0f766e;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;display:inline-block">Criar senha nova</a></p>
 <p style="margin:0;font-size:12px;color:#64748b">Se o botão não abrir, copie este endereço:<br><span style="word-break:break-all">{escape(url)}</span></p>
 </td></tr>
 <tr><td style="padding:14px 28px;background:#f8fafc;font-size:12px;color:#94a3b8">
