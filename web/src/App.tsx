@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, type ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
+import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation } from "react-router";
 import { api, LOGOUT_EVENT, session, type Me, type Overview } from "./api";
 import { LiveIndicator, LiveProvider } from "./live";
 import { ThemeToggle } from "./theme";
@@ -9,6 +9,7 @@ import { Icon, type IconName } from "./components/icons";
 import { Logo, LogoMark } from "./components/Logo";
 import { Assistant } from "./components/Assistant";
 import { CriticalAlerts } from "./components/CriticalAlerts";
+import { GlobalSearch } from "./components/GlobalSearch";
 import { ToastProvider } from "./toast";
 import { AlarmsPage } from "./pages/AlarmsPage";
 import { AccountPage } from "./pages/AccountPage";
@@ -252,7 +253,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               <span className="lg:hidden">
                 <LogoMark size={26} />
               </span>
-              <SearchBox />
+              <GlobalSearch pages={NAV.flatMap((g) => g.items).filter((i) => !i.adminOnly || me?.role === "admin")} />
               <div className="ml-auto flex items-center gap-3">
                 <span className="hidden sm:inline">
                   <LiveIndicator />
@@ -269,32 +270,5 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         </div>
       </ToastProvider>
     </LiveProvider>
-  );
-}
-
-/** Busca rápida: leva para Clientes (nome, código, serial, endereço ou bairro). */
-function SearchBox() {
-  const navigate = useNavigate();
-  const [q, setQ] = useState("");
-  return (
-    <form
-      role="search"
-      className="flex max-w-md flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const term = q.trim();
-        navigate(term ? `/clientes?q=${encodeURIComponent(term)}` : "/clientes");
-      }}
-    >
-      <Icon name="search" className="size-4 shrink-0 text-slate-400" />
-      <input
-        type="search"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Buscar cliente, serial ou endereço…"
-        aria-label="Buscar cliente, serial ou endereço"
-        className="h-9 w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
-      />
-    </form>
   );
 }
