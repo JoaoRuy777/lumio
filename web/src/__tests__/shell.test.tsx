@@ -46,7 +46,34 @@ describe("menu lateral", () => {
 
   it("a busca do topo procura em Clientes", async () => {
     const { calls } = setup();
-    await userEvent.type(screen.getByRole("searchbox", { name: /Buscar cliente/ }), "maria{Enter}");
+    await userEvent.type(screen.getByRole("combobox", { name: /Buscar cliente/ }), "maria");
     await waitFor(() => expect(calls.some((c) => c.key === "GET /customers" && c.url.searchParams.get("q") === "maria")).toBe(true));
+    await userEvent.keyboard("{Enter}");
+    // sem resultado melhor, Enter leva para a lista de clientes filtrada
+    await waitFor(() => expect(calls.filter((c) => c.key === "GET /customers").some((c) => c.url.searchParams.get("limit") !== "5")).toBe(true));
+  });
+
+  it("busca universal: telas, clientes, ONUs e chamados; Ctrl+K foca", async () => {
+    mockApi({
+      "GET /auth/me": () => ({ json: me }),
+      "GET /overview": () => ({ json: overview }),
+      "GET /events": () => ({ status: 503 }),
+      "GET /customers": () => ({ json: { items: [{ id: "c1", name: "Maria Souza", code: "C1", district: "Centro", serial: "HWTC1", onu_id: "onu-9" }], total: 1 } }),
+      "GET /onus": () => ({ json: { items: [], total: 0 } }),
+      "GET /olts": () => ({ json: { items: [], usage: { used: 0, limit: 2 } } }),
+      "GET /alarms": () => ({ json: { items: [], total: 0 } }),
+      "GET /onus/onu-9": () => ({ status: 404 }),
+    });
+    renderWithQuery(<AppRoutes onLogout={vi.fn()} />, { route: "/conta" });
+    const box = screen.getByRole("combobox", { name: /Buscar cliente/ });
+    await userEvent.keyboard("{Control>}k{/Control}");
+    expect(box).toHaveFocus();
+    await userEvent.type(box, "ma");
+    const list = await screen.findByRole("listbox", { name: "Resultados da busca" });
+    expect(within(list).getByRole("option", { name: /Mapa da rede/ })).toBeInTheDocument();
+    expect(await within(list).findByRole("option", { name: /Maria Souza/ })).toBeInTheDocument();
+    // setas escolhem o resultado e Enter abre (e limpa a busca)
+    await userEvent.keyboard("{ArrowDown}{Enter}");
+    await waitFor(() => expect(box).toHaveValue(""));
   });
 });
