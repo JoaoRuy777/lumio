@@ -112,6 +112,25 @@ async def availability(db: asyncpg.Connection, p: Period) -> dict:
     }
 
 
+def _timeline(p: Period, rows) -> dict:
+    """Alarmes abertos por hora (períodos de até 2 dias) ou por dia (horário de Brasília), por severidade."""
+    hourly = p.seconds <= 2 * 86400
+    step = timedelta(hours=1) if hourly else timedelta(days=1)
+    start = p.start.astimezone(BRT)
+    start = start.replace(minute=0, second=0, microsecond=0) if hourly else start.replace(hour=0, minute=0, second=0, microsecond=0)
+    buckets: list[dict] = []
+    t = start
+    while t < p.end:
+        buckets.append({"t": t.isoformat(), "critical": 0, "major": 0, "other": 0})
+        t += step
+    for r in rows:
+        i = int((r["event_ts"].astimezone(BRT) - start) // step)
+        if 0 <= i < len(buckets):
+            key = r["severity"] if r["severity"] in ("critical", "major") else "other"
+            buckets[i][key] += 1
+    return {"bucket": "hour" if hourly else "day", "points": buckets}
+
+
 async def alarms_report(db: asyncpg.Connection, p: Period) -> dict:
     rows = await db.fetch(
         """
@@ -142,6 +161,7 @@ async def alarms_report(db: asyncpg.Connection, p: Period) -> dict:
         })
     return {
         "period": {"from": p.start.isoformat(), "to": p.end.isoformat()},
+        "timeline": _timeline(p, rows),
         "total": len(items),
         "open": sum(1 for i in items if i["cleared_at"] is None),
         "mttr_min": round(sum(durations) / len(durations), 1) if durations else None,

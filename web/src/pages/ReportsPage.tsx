@@ -12,6 +12,24 @@ import {
 } from "../api";
 import { Button, Card, inputClass, StatTile, td, th } from "../components/ui";
 import { humanMinutes, kindLabel } from "../format";
+import { AlarmsPerHour, HBars } from "../components/charts";
+
+// mesma cor da severidade de cada tipo de alarme
+const KIND_COLOR: Record<AlarmKind, string> = {
+  pon_fiber_cut: "#dc2626",
+  olt_unreachable: "#dc2626",
+  olt_cpu_high: "#ea580c",
+  onu_offline: "#eab308",
+  onu_rx_low: "#94a3b8",
+};
+
+const availColor = (v: number | null) => (v == null ? "#94a3b8" : v >= 99.5 ? "#14b8a6" : v >= 98 ? "#eab308" : "#dc2626");
+
+/** Escala das barras de disponibilidade: de um pouco abaixo da pior até 100 %. */
+function availMin(values: (number | null)[]) {
+  const worst = Math.min(100, ...values.filter((v): v is number => v != null));
+  return Math.max(0, Math.min(95, Math.floor(worst) - 2));
+}
 
 type Preset = "1" | "7" | "30" | "custom";
 
@@ -151,7 +169,22 @@ export function ReportsPage() {
           </span>
         }
       >
-        <div className="overflow-x-auto">
+        {!!availability.data?.olts.length && (
+          <HBars
+            label="Disponibilidade por OLT"
+            min={availMin(availability.data.olts.map((o) => o.availability_pct))}
+            max={100}
+            format={(v) => pct(v)}
+            items={availability.data.olts.map((o) => ({
+              key: o.olt,
+              label: o.olt,
+              value: o.availability_pct ?? 0,
+              color: availColor(o.availability_pct),
+              hint: `${o.onu_outages} quedas · ${o.fiber_cuts} rompimentos`,
+            }))}
+          />
+        )}
+        <div className="overflow-x-auto border-t border-slate-200">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
@@ -200,7 +233,7 @@ export function ReportsPage() {
       </Card>
 
       <Card
-        title="Alarmes por tipo"
+        title="Alarmes no período"
         actions={
           <span className="flex gap-2">
             <Button variant="secondary" onClick={() => download("alarms", "csv")} disabled={!params}>
@@ -213,16 +246,21 @@ export function ReportsPage() {
         }
       >
         {alarms.data && Object.keys(alarms.data.by_kind).length > 0 ? (
-          <ul className="divide-y divide-slate-100 text-sm">
-            {(Object.entries(alarms.data.by_kind) as [AlarmKind, number][])
-              .sort((a, b) => b[1] - a[1])
-              .map(([kind, n]) => (
-                <li key={kind} className="flex justify-between px-4 py-2 tabular-nums">
-                  <span>{kindLabel[kind]}</span>
-                  <span className="font-medium">{n}</span>
-                </li>
-              ))}
-          </ul>
+          <div className="grid gap-2 lg:grid-cols-2">
+            <HBars
+              label="Alarmes por tipo"
+              format={(v) => String(v)}
+              items={(Object.entries(alarms.data.by_kind) as [AlarmKind, number][])
+                .sort((a, b) => b[1] - a[1])
+                .map(([kind, n]) => ({ key: kind, label: kindLabel[kind], value: n, color: KIND_COLOR[kind] }))}
+            />
+            {alarms.data.timeline && (
+              <div className="p-4 lg:border-l lg:border-slate-200">
+                <p className="mb-2 text-sm font-medium">{alarms.data.timeline.bucket === "hour" ? "Por hora" : "Por dia"}</p>
+                <AlarmsPerHour hours={alarms.data.timeline.points} bucket={alarms.data.timeline.bucket} live={false} suffix="no período" />
+              </div>
+            )}
+          </div>
         ) : (
           <p className="px-4 py-6 text-sm text-slate-500">Nenhum alarme no período.</p>
         )}
@@ -288,7 +326,22 @@ function AttendanceSection({
       </div>
 
       <Card title="Por operador">
-        <div className="overflow-x-auto">
+        {!!report?.operators.some((o) => o.tma_min != null) && (
+          <HBars
+            label="TMA por operador"
+            format={(v) => humanMinutes(v)}
+            items={report.operators
+              .filter((o) => o.tma_min != null)
+              .map((o) => ({
+                key: o.name,
+                label: o.name,
+                value: o.tma_min!,
+                color: o.tma_min! > (report.summary.tma_min ?? 0) * 1.5 ? "#ea580c" : "#14b8a6",
+                hint: `${o.closed} encerrados`,
+              }))}
+          />
+        )}
+        <div className="overflow-x-auto border-t border-slate-200">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>

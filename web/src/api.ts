@@ -328,6 +328,7 @@ export interface AlarmsReport {
   mttr_min: number | null;
   by_kind: Partial<Record<AlarmKind, number>>;
   by_severity: Partial<Record<Severity, number>>;
+  timeline?: { bucket: "hour" | "day"; points: { t: string; critical: number; major: number; other: number }[] };
 }
 
 /** Baixa um arquivo da API (com o token) e entrega ao navegador. */

@@ -15,6 +15,9 @@ export function Sparkline({ values, color, label }: { values: number[]; color: s
 }
 
 const hour = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const day = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+
+type Bucket = Pick<HourPoint, "t" | "critical" | "major" | "other">;
 
 // cores de severidade (as mesmas dos ícones), empilhadas da base para cima
 const SEGMENTS = [
@@ -23,9 +26,25 @@ const SEGMENTS = [
   { key: "other", label: "Menor/aviso", color: "#94a3b8" },
 ] as const;
 
-/** Barras empilhadas: alarmes abertos em cada hora das últimas 24 h. */
-export function AlarmsPerHour({ hours }: { hours: HourPoint[] }) {
-  const total = (h: HourPoint) => h.critical + h.major + h.other;
+/**
+ * Barras empilhadas por severidade: alarmes abertos em cada hora (ou dia).
+ * `live`: a última barra é "agora" (visão geral); nos relatórios mostra a data.
+ */
+export function AlarmsPerHour({
+  hours,
+  bucket = "hour",
+  live = true,
+  suffix = "em 24 h",
+}: {
+  hours: Bucket[];
+  bucket?: "hour" | "day";
+  live?: boolean;
+  suffix?: string;
+}) {
+  const label = bucket === "hour" ? hour : day;
+  const total = (h: Bucket) => h.critical + h.major + h.other;
+  const count = hours.length;
+  const marks = count ? [0, Math.floor(count / 3), Math.floor((2 * count) / 3), count - 1] : [];
   const max = Math.max(1, ...hours.map(total));
   const sum = hours.reduce((acc, h) => acc + total(h), 0);
   return (
@@ -37,7 +56,7 @@ export function AlarmsPerHour({ hours }: { hours: HourPoint[] }) {
             <div
               key={h.t}
               className="group relative flex h-full flex-1 items-end"
-              title={`${hour(h.t)}: ${n} ${n === 1 ? "alarme" : "alarmes"}${n ? ` (${h.critical} crít., ${h.major} graves, ${h.other} outros)` : ""}`}
+              title={`${label(h.t)}: ${n} ${n === 1 ? "alarme" : "alarmes"}${n ? ` (${h.critical} crít., ${h.major} graves, ${h.other} outros)` : ""}`}
             >
               {n === 0 ? (
                 <span className="block h-0.5 w-full rounded-sm bg-slate-200" />
@@ -54,10 +73,9 @@ export function AlarmsPerHour({ hours }: { hours: HourPoint[] }) {
         })}
       </div>
       <div className="flex justify-between text-[11px] text-slate-500 tabular-nums" aria-hidden>
-        <span>{hours[0] && hour(hours[0].t)}</span>
-        <span>{hours[8] && hour(hours[8].t)}</span>
-        <span>{hours[16] && hour(hours[16].t)}</span>
-        <span>agora</span>
+        {marks.map((i, k) => (
+          <span key={k}>{k === marks.length - 1 && live ? "agora" : label(hours[i].t)}</span>
+        ))}
       </div>
       <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
         {SEGMENTS.map((s) => (
@@ -67,15 +85,15 @@ export function AlarmsPerHour({ hours }: { hours: HourPoint[] }) {
           </span>
         ))}
         <span className="ml-auto">
-          {sum} {sum === 1 ? "alarme" : "alarmes"} em 24 h
+          {sum} {sum === 1 ? "alarme" : "alarmes"} {suffix}
         </span>
       </figcaption>
       {/* a mesma informação em tabela, para leitor de tela */}
       <table className="sr-only">
-        <caption>Alarmes abertos por hora</caption>
+        <caption>Alarmes abertos por {bucket === "hour" ? "hora" : "dia"}</caption>
         <thead>
           <tr>
-            <th>Hora</th>
+            <th>{bucket === "hour" ? "Hora" : "Dia"}</th>
             <th>Críticos</th>
             <th>Graves</th>
             <th>Outros</th>
@@ -84,7 +102,7 @@ export function AlarmsPerHour({ hours }: { hours: HourPoint[] }) {
         <tbody>
           {hours.map((h) => (
             <tr key={h.t}>
-              <td>{hour(h.t)}</td>
+              <td>{label(h.t)}</td>
               <td>{h.critical}</td>
               <td>{h.major}</td>
               <td>{h.other}</td>
@@ -93,5 +111,36 @@ export function AlarmsPerHour({ hours }: { hours: HourPoint[] }) {
         </tbody>
       </table>
     </figure>
+  );
+}
+
+/** Barras horizontais com rótulo e valor (uma magnitude só, cor por faixa). */
+export function HBars({
+  items,
+  max,
+  min = 0,
+  format,
+  label,
+}: {
+  items: { key: string; label: string; value: number; color: string; hint?: string }[];
+  max?: number;
+  /** início da escala (ex.: 90 para disponibilidade, senão 99 % e 100 % ficam iguais) */
+  min?: number;
+  format: (v: number) => string;
+  label: string;
+}) {
+  const top = max ?? Math.max(1, ...items.map((i) => i.value));
+  return (
+    <ul className="space-y-2.5 p-4" aria-label={label}>
+      {items.map((i) => (
+        <li key={i.key} className="grid grid-cols-[minmax(7rem,12rem)_1fr_auto] items-center gap-3 text-sm" title={i.hint}>
+          <span className="truncate">{i.label}</span>
+          <span className="h-2.5 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+            <span className="block h-full rounded-full" style={{ width: `${Math.max(1, (100 * (i.value - min)) / (top - min))}%`, background: i.color }} />
+          </span>
+          <span className="w-24 text-right font-medium tabular-nums">{format(i.value)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
