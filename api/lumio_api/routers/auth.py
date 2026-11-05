@@ -8,7 +8,7 @@ import unicodedata
 import asyncpg
 from fastapi import APIRouter, HTTPException, Request, status
 
-from ..audit import audit
+from ..audit import audit, client_ip
 from ..db import system_tx, tenant_tx
 from ..deps import TenantDb, User, cipher, pool, settings
 from ..schemas import (ForgotPasswordIn, LoginIn, MeOut, PasswordChangeIn, PlanUsage, ResetPasswordIn, SignupIn,
@@ -48,13 +48,24 @@ async def signup(body: SignupIn, request: Request) -> TokenOut:
 
 @router.post("/login", response_model=TokenOut)
 async def login(body: LoginIn, request: Request) -> TokenOut:
+    ip = client_ip(request)
     async with system_tx(pool(request)) as conn:
+        wait = await conn.fetchval("SELECT lumio_login_wait($1, $2)", body.email, ip)
         row = await conn.fetchrow("SELECT * FROM lumio_login_lookup($1)", body.email)
-    ok = verify_password(row["password_hash"] if row else None, body.password)
+        # travado: nem confere a senha (não dá para continuar adivinhando)
+        ok = wait == 0 and verify_password(row["password_hash"] if row else None, body.password)
+        if wait == 0:
+            await conn.execute("SELECT lumio_login_record($1, $2, $3)", body.email, ip, ok)
     if row:                                   # e-mail desconhecido não tem provedor onde registrar
+        action = "auth.login_blocked" if wait else "auth.login" if ok else "auth.login_failed"
         async with tenant_tx(pool(request), row["tenant_id"]) as conn:
-            await audit(conn, row["tenant_id"], row["user_id"], "auth.login" if ok else "auth.login_failed",
-                        request=request, target_type="user", target_id=row["user_id"], label=body.email.lower())
+            await audit(conn, row["tenant_id"], row["user_id"], action, request=request, target_type="user",
+                        target_id=row["user_id"], label=body.email.lower())
+    if wait:
+        minutes = max(1, -(-wait // 60))
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                            f"muitas tentativas erradas; tente de novo em {minutes} min",
+                            headers={"Retry-After": str(wait)})
     if not ok:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "e-mail ou senha incorretos")
     return _token(request, row["user_id"], row["tenant_id"], row["role"], row["session_version"])

@@ -20,6 +20,7 @@ ACTION_LABEL = {
     "auth.signup": "Criou a conta do provedor",
     "auth.login": "Entrou no sistema",
     "auth.login_failed": "Errou a senha ao entrar",
+    "auth.login_blocked": "Login travado (muitas tentativas)",
     "auth.password_changed": "Trocou a própria senha",
     "auth.password_reset": "Redefiniu a senha pelo e-mail",
     "user.create": "Criou usuário",

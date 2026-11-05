@@ -56,7 +56,7 @@ def test_db_url():
 @pytest.fixture
 async def pool(test_db_url):
     pool = await asyncpg.create_pool(test_db_url, min_size=1, max_size=4)
-    await pool.execute("TRUNCATE tenants CASCADE")
+    await pool.execute("TRUNCATE tenants, login_attempts CASCADE")
     yield pool
     await pool.close()
 
