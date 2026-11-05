@@ -26,6 +26,7 @@ ALARM_SELECT = """
            (SELECT count(*) FROM alarms c WHERE c.parent_id = a.id) AS children,
            u.name AS acknowledged_by_name, ua.name AS assigned_to_name, uc.name AS work_closed_by_name,
            cu.name AS customer_name, mw.reason AS maintenance_reason,
+           (SELECT max(e.created_at) FROM alarm_escalations e WHERE e.alarm_id = a.id) AS escalated_at,
            (SELECT count(*) FROM alarms c JOIN onus cn ON cn.id = c.onu_id
               JOIN customers cc ON cc.tenant_id = cn.tenant_id AND cc.onu_serial = cn.serial
              WHERE c.parent_id = a.id) AS affected_customers
@@ -261,9 +262,16 @@ async def timeline(alarm_id: UUID, user: User, db: TenantDb) -> list[TimelineIte
     for n in await db.fetch(
             "SELECT n.sent_at, n.event, c.name FROM notifications n "
             "JOIN notification_channels c ON c.id = n.channel_id "
-            "WHERE n.alarm_id = $1 AND n.status = 'sent' AND n.sent_at IS NOT NULL", alarm_id):
+            "WHERE n.alarm_id = $1 AND n.status = 'sent' AND n.sent_at IS NOT NULL AND n.event <> 'escalated'",
+            alarm_id):
         items.append(TimelineItem(at=n["sent_at"], kind="notified", target=n["name"],
                                   body="normalização" if n["event"] == "cleared" else "abertura"))
+    for e in await db.fetch(
+            "SELECT e.created_at, r.name, r.after_minutes, c.name AS channel FROM alarm_escalations e "
+            "JOIN escalation_rules r ON r.id = e.rule_id JOIN notification_channels c ON c.id = r.channel_id "
+            "WHERE e.alarm_id = $1", alarm_id):
+        items.append(TimelineItem(at=e["created_at"], kind="escalated", target=e["channel"],
+                                  body=f"{e['name']}: sem responsável há {e['after_minutes']} min"))
     if alarm["cleared_at"]:
         items.append(TimelineItem(at=alarm["cleared_at"], kind="cleared"))
     return sorted(items, key=lambda i: i.at)
