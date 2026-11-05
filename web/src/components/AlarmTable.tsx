@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useState, type MouseEvent } from "react";
+import { Fragment, useEffect, useState, type MouseEvent } from "react";
 import { Link } from "react-router";
 import { api, ApiError, query, type Alarm, type Page, type Severity } from "../api";
 import { ago, dateTime, dbm, duration, kindLabel, location, stopwatch } from "../format";
@@ -15,6 +15,45 @@ const STRIPE: Record<Severity, string> = {
   minor: "shadow-[inset_4px_0_0_#eab308]",
   warning: "shadow-[inset_4px_0_0_#94a3b8]",
 };
+
+/** Celular: a lista vira cartões (a tabela rolaria para o lado). */
+function useNarrow() {
+  const query = "(max-width: 639px)";
+  const get = () => typeof window.matchMedia === "function" && window.matchMedia(query).matches;
+  const [narrow, setNarrow] = useState(get);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(query);
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, []);
+  return narrow;
+}
+
+/** Selos extras do alarme: escalonado e manutenção. */
+function ExtraBadges({ alarm: a }: { alarm: Alarm }) {
+  return (
+    <>
+      {a.escalated_at && !a.assigned_to && a.status !== "cleared" && (
+        <span
+          className="ml-1.5 inline-flex rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-600/20 ring-inset"
+          title="Ninguém assumiu a tempo: o aviso foi escalado"
+        >
+          Escalonado
+        </span>
+      )}
+      {a.maintenance_id && (
+        <span
+          className="ml-1.5 inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 ring-1 ring-sky-600/20 ring-inset"
+          title={`Manutenção programada: ${a.maintenance_reason ?? ""} (sem aviso por e-mail)`}
+        >
+          Manutenção
+        </span>
+      )}
+    </>
+  );
+}
 
 /** Tela larga o bastante para a lista e o chamado lado a lado. */
 const wide = () => typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1280px)").matches;
@@ -115,6 +154,7 @@ export function AlarmTable({
 
   const now = useNow();
   const toast = useToast();
+  const narrow = useNarrow();
   const assume = useMutation({
     mutationFn: (a: Alarm) => api<Alarm>(`/alarms/${a.id}/assign`, { method: "POST", body: {} }),
     onSuccess: () => {
@@ -148,6 +188,75 @@ export function AlarmTable({
     e.preventDefault();
     onSelect(a);
   };
+
+  const canAssume = (a: Alarm) => !a.parent_id && !a.assigned_to && !a.work_closed_at && a.status !== "cleared";
+
+  if (narrow) {
+    return (
+      <div>
+        {error && (
+          <p role="alert" className="m-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+        <ul className="divide-y divide-slate-100" aria-label="Alarmes">
+          {alarms.map((a) => (
+            <li
+              key={a.id}
+              className={`px-4 py-3 ${a.status === "cleared" ? "" : STRIPE[a.severity]} ${fresh.has(a.id) && a.status === "active" ? "bg-red-50/60" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <SeverityBadge severity={a.severity} />
+                  <p className="mt-1 font-semibold">
+                    <Link to={`/alarms/${a.id}`} className="hover:underline">
+                      {kindLabel[a.kind]}
+                    </Link>
+                    <Detail alarm={a} />
+                  </p>
+                  <p className="text-xs text-slate-500">{location(a)}</p>
+                </div>
+                <span className="shrink-0 text-xs text-slate-500" title={dateTime(a.created_at)}>
+                  {history ? dateTime(a.created_at) : ago(a.created_at)}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-y-1">
+                <AlarmStatusBadge status={a.status} />
+                <ExtraBadges alarm={a} />
+              </div>
+              <Attendance alarm={a} now={now} />
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                {canAssume(a) && (
+                  <Button variant="secondary" disabled={assume.isPending} onClick={() => assume.mutate(a)}>
+                    Assumir
+                  </Button>
+                )}
+                {!a.parent_id && (
+                  <Link to={`/alarms/${a.id}`} className="text-sm font-medium text-brand-600 hover:underline">
+                    Abrir chamado
+                  </Link>
+                )}
+                {a.children > 0 && (
+                  <button
+                    className="text-sm font-medium text-brand-600 hover:underline"
+                    aria-expanded={open.has(a.id)}
+                    onClick={() => toggle(a.id)}
+                  >
+                    {open.has(a.id) ? "Ocultar" : "Ver"} {a.children} ONUs
+                  </button>
+                )}
+              </div>
+              {open.has(a.id) && (
+                <div className="-mx-4 mt-2 bg-slate-50">
+                  <Children parent={a} />
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto">
@@ -207,27 +316,12 @@ export function AlarmTable({
                 )}
                 <td className={td}>
                   <AlarmStatusBadge status={a.status} />
-                  {a.escalated_at && !a.assigned_to && a.status !== "cleared" && (
-                    <span
-                      className="ml-1.5 inline-flex rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-orange-600/20 ring-inset"
-                      title="Ninguém assumiu a tempo: o aviso foi escalado"
-                    >
-                      Escalonado
-                    </span>
-                  )}
-                  {a.maintenance_id && (
-                    <span
-                      className="ml-1.5 inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 ring-1 ring-sky-600/20 ring-inset"
-                      title={`Manutenção programada: ${a.maintenance_reason ?? ""} (sem aviso por e-mail)`}
-                    >
-                      Manutenção
-                    </span>
-                  )}
+                  <ExtraBadges alarm={a} />
                   <Attendance alarm={a} now={now} />
                 </td>
                 {!compact && (
                   <td className={`${td} text-right whitespace-nowrap`}>
-                    {!a.parent_id && !a.assigned_to && !a.work_closed_at && a.status !== "cleared" ? (
+                    {canAssume(a) ? (
                       <Button variant="secondary" disabled={assume.isPending} onClick={() => assume.mutate(a)}>
                         Assumir
                       </Button>
