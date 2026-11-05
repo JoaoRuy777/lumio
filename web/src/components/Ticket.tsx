@@ -227,6 +227,12 @@ export function Ticket({ id, me, layout = "page", onClose }: { id: string; me: M
         </div>
       </div>
 
+      {a.maintenance_id && (
+        <p className="rounded-md bg-sky-50 px-4 py-3 text-sm text-sky-800">
+          Aberto durante <b>manutenção programada</b> ({a.maintenance_reason}): não foi enviado aviso por e-mail.
+        </p>
+      )}
+
       {isChild ? (
         <p className="rounded-md bg-sky-50 px-4 py-3 text-sm text-sky-800">
           Esta ONU faz parte de um rompimento de fibra. O atendimento é feito no{" "}

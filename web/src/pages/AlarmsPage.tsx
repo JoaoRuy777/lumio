@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { api, query, type Alarm, type Me, type Page, type Severity } from "../api";
 import { AlarmTable } from "../components/AlarmTable";
+import { MaintenanceBanner } from "../components/MaintenanceBanner";
 import { Ticket } from "../components/Ticket";
 import { Card, Pager, SeverityIcon } from "../components/ui";
 import { severityLabel } from "../format";
@@ -74,6 +75,8 @@ export function AlarmsPage() {
           </p>
         )}
       </div>
+
+      <MaintenanceBanner />
 
       {/* filtros numa linha só, acima da lista */}
       <div className="flex flex-wrap items-center gap-4">

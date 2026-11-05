@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { api, query, type AtRiskOnu, type AttendanceReport, type HourPoint, type OltList, type Overview, type Severity } from "../api";
 import { AlarmTable } from "../components/AlarmTable";
 import { AlarmsPerHour, Sparkline } from "../components/charts";
+import { MaintenanceBanner } from "../components/MaintenanceBanner";
 import { Card, SeverityIcon, StatusBadge } from "../components/ui";
 import { dbm, humanMinutes, RX_LIMIT_DBM, severityLabel } from "../format";
 
@@ -99,6 +100,8 @@ export function OverviewPage() {
           <h1 className="text-2xl font-bold tracking-tight">Visão geral</h1>
         </div>
       </div>
+
+      <MaintenanceBanner />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Kpi
