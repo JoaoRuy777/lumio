@@ -1,11 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useState } from "react";
+import { Fragment, useState, type MouseEvent } from "react";
 import { Link } from "react-router";
-import { api, ApiError, query, type Alarm, type Page } from "../api";
+import { api, ApiError, query, type Alarm, type Page, type Severity } from "../api";
 import { ago, dateTime, dbm, duration, kindLabel, location, stopwatch } from "../format";
 import { useNow } from "../useNow";
 import { useLive } from "../live";
 import { AlarmStatusBadge, Button, SeverityBadge, td, th } from "./ui";
+
+// faixa colorida no começo da linha: a severidade se lê de longe (com o texto ao lado)
+const STRIPE: Record<Severity, string> = {
+  critical: "shadow-[inset_4px_0_0_#dc2626]",
+  major: "shadow-[inset_4px_0_0_#ea580c]",
+  minor: "shadow-[inset_4px_0_0_#eab308]",
+  warning: "shadow-[inset_4px_0_0_#94a3b8]",
+};
+
+/** Tela larga o bastante para a lista e o chamado lado a lado. */
+const wide = () => typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1280px)").matches;
 
 function Detail({ alarm }: { alarm: Alarm }) {
   const rx = alarm.details.rx_dbm;
@@ -52,27 +63,50 @@ export function Children({ parent }: { parent: Alarm }) {
   });
   if (isPending) return <p className="px-4 py-2 text-sm text-slate-500">Carregando ONUs…</p>;
   return (
-    <ul className="grid gap-x-6 gap-y-1 px-4 py-3 text-sm sm:grid-cols-2 lg:grid-cols-4" aria-label={`ONUs afetadas por ${kindLabel[parent.kind]}`}>
-      {[...(data?.items ?? [])].sort((x, y) => (x.onu_index ?? 0) - (y.onu_index ?? 0)).map((c) => (
-        <li key={c.id} className="flex items-center gap-2">
-          <span className={`size-1.5 rounded-full ${c.status === "cleared" ? "bg-emerald-500" : "bg-red-500"}`} aria-hidden />
-          {c.onu_id ? (
-            <Link className="hover:underline" to={`/onus/${c.onu_id}`}>
-              ONU {c.onu_index}
-            </Link>
-          ) : (
-            <span>ONU {c.onu_index}</span>
-          )}
-          <span className="font-mono text-xs text-slate-500">{c.onu_serial}</span>
-          {c.customer_name && <span className="truncate text-xs text-slate-600">{c.customer_name}</span>}
-          {c.status === "cleared" && <span className="text-xs text-emerald-700">voltou</span>}
-        </li>
-      ))}
-    </ul>
+    <div className="@container">
+      <ul
+        className="grid gap-x-6 gap-y-1 px-4 py-3 text-sm @md:grid-cols-2 @4xl:grid-cols-4"
+        aria-label={`ONUs afetadas por ${kindLabel[parent.kind]}`}
+      >
+        {[...(data?.items ?? [])]
+          .sort((x, y) => (x.onu_index ?? 0) - (y.onu_index ?? 0))
+          .map((c) => (
+            <li key={c.id} className="flex items-center gap-2">
+              <span className={`size-1.5 rounded-full ${c.status === "cleared" ? "bg-emerald-500" : "bg-red-500"}`} aria-hidden />
+              {c.onu_id ? (
+                <Link className="hover:underline" to={`/onus/${c.onu_id}`}>
+                  ONU {c.onu_index}
+                </Link>
+              ) : (
+                <span>ONU {c.onu_index}</span>
+              )}
+              <span className="font-mono text-xs text-slate-500">{c.onu_serial}</span>
+              {c.customer_name && <span className="truncate text-xs text-slate-600">{c.customer_name}</span>}
+              {c.status === "cleared" && <span className="text-xs text-emerald-700">voltou</span>}
+            </li>
+          ))}
+      </ul>
+    </div>
   );
 }
 
-export function AlarmTable({ alarms, history = false, compact = false, emptyText }: { alarms: Alarm[]; history?: boolean; compact?: boolean; emptyText?: string }) {
+export function AlarmTable({
+  alarms,
+  history = false,
+  compact = false,
+  emptyText,
+  selectedId,
+  onSelect,
+}: {
+  alarms: Alarm[];
+  history?: boolean;
+  compact?: boolean;
+  emptyText?: string;
+  /** chamado aberto no painel ao lado (destaca a linha) */
+  selectedId?: string | null;
+  /** em tela larga, abrir o chamado no painel em vez de trocar de página */
+  onSelect?: (a: Alarm) => void;
+}) {
   const qc = useQueryClient();
   const { fresh } = useLive();
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -105,6 +139,11 @@ export function AlarmTable({ alarms, history = false, compact = false, emptyText
       return n;
     });
   const cols = compact ? 4 : 6;
+  const openTicket = (a: Alarm) => (e: MouseEvent) => {
+    if (!onSelect || a.parent_id || e.ctrlKey || e.metaKey || e.shiftKey || !wide()) return;
+    e.preventDefault();
+    onSelect(a);
+  };
 
   return (
     <div className="overflow-x-auto">
@@ -127,13 +166,17 @@ export function AlarmTable({ alarms, history = false, compact = false, emptyText
         <tbody className="divide-y divide-slate-100">
           {alarms.map((a) => (
             <Fragment key={a.id}>
-              <tr className={fresh.has(a.id) && a.status === "active" ? "bg-red-50/60" : undefined} data-alarm-id={a.id}>
-                <td className={td}>
+              <tr
+                className={`transition-colors ${a.id === selectedId ? "bg-brand-50" : fresh.has(a.id) && a.status === "active" ? "bg-red-50/60" : "hover:bg-slate-50"}`}
+                data-alarm-id={a.id}
+                aria-current={a.id === selectedId ? "true" : undefined}
+              >
+                <td className={`${td} ${a.status === "cleared" ? "" : STRIPE[a.severity]}`}>
                   <SeverityBadge severity={a.severity} />
                 </td>
                 <td className={td}>
                   <p className="font-medium">
-                    <Link to={`/alarms/${a.id}`} className="hover:underline">
+                    <Link to={`/alarms/${a.id}`} className="hover:underline" onClick={openTicket(a)}>
                       {kindLabel[a.kind]}
                     </Link>
                     <Detail alarm={a} />
@@ -156,9 +199,7 @@ export function AlarmTable({ alarms, history = false, compact = false, emptyText
                   {history ? dateTime(a.created_at) : ago(a.created_at)}
                 </td>
                 {!compact && (
-                  <td className={`${td} tabular-nums`}>
-                    {history ? duration(a.created_at, a.cleared_at) : `${a.occurrences}×`}
-                  </td>
+                  <td className={`${td} tabular-nums`}>{history ? duration(a.created_at, a.cleared_at) : `${a.occurrences}×`}</td>
                 )}
                 <td className={td}>
                   <AlarmStatusBadge status={a.status} />
@@ -172,7 +213,7 @@ export function AlarmTable({ alarms, history = false, compact = false, emptyText
                       </Button>
                     ) : (
                       !a.parent_id && (
-                        <Link to={`/alarms/${a.id}`} className="text-sm font-medium text-brand-600 hover:underline">
+                        <Link to={`/alarms/${a.id}`} className="text-sm font-medium text-brand-600 hover:underline" onClick={openTicket(a)}>
                           Abrir chamado
                         </Link>
                       )

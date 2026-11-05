@@ -102,3 +102,32 @@ describe("relatório de atendimento", () => {
     expect(within(section).getByText("Rompimento por terceiros (obra, veículo)")).toBeInTheDocument();
   });
 });
+
+describe("central de alarmes", () => {
+  it("em tela larga, abre o chamado no painel ao lado da lista e fecha", async () => {
+    const { vi } = await import("vitest");
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
+    const { AlarmsPage } = await import("../pages/AlarmsPage");
+    const alarm = makeAlarm({ created_at: minutesAgo(12), assigned_to: "Ana", assigned_to_id: "u1", first_assigned_at: minutesAgo(10), assigned_at: minutesAgo(10) });
+    const waiting = makeAlarm({ id: "alarm-2", kind: "olt_unreachable", pon: null, children: 0, created_at: minutesAgo(3) });
+    mockApi({
+      "GET /alarms": () => ({ json: { items: [alarm, waiting], total: 2 } }),
+      "GET /auth/me": () => ({ json: me }),
+      "GET /alarms/alarm-1": () => ({ json: alarm }),
+      "GET /alarms/alarm-1/timeline": () => ({ json: [{ at: minutesAgo(12), kind: "opened", actor: null, target: null, body: null }] }),
+      "GET /users": () => ({ json: { items: [] } }),
+    });
+    renderWithQuery(<AlarmsPage />, { route: "/alarms" });
+
+    expect(await screen.findByText(/sem responsável/)).toHaveTextContent("1 sem responsável");
+    await userEvent.click(screen.getByRole("link", { name: "Rompimento de fibra" }));
+    const panel = await screen.findByRole("complementary", { name: "Chamado selecionado" });
+    expect(await within(panel).findByText("Em atendimento")).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Abrir em tela cheia" })).toHaveAttribute("href", "/alarms/alarm-1");
+    expect(screen.getByRole("link", { name: "Rompimento de fibra" }).closest("tr")).toHaveAttribute("aria-current", "true");
+
+    await userEvent.click(within(panel).getByRole("button", { name: "Fechar chamado" }));
+    expect(screen.queryByRole("complementary", { name: "Chamado selecionado" })).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+});
