@@ -303,5 +303,19 @@ class Overview(BaseModel):
     rx_low: int                  # ONUs com sinal abaixo do limite
     rx_trend: int = 0            # ONUs com sinal piorando (devem passar do limite em até 7 dias)
     customers: int = 0           # clientes importados
+    customers_offline: int = 0   # clientes com a ONU offline agora
     alarms: dict[str, int]       # abertos (sem os agrupados) por severidade + total
     recent_alarms: list[AlarmOut]
+
+
+class HourPoint(BaseModel):
+    t: datetime                  # início da hora
+    critical: int                # alarmes abertos nesta hora, por severidade
+    major: int
+    other: int                   # menor + aviso
+    open: int                    # alarmes em aberto ao fim da hora
+    onus_offline: int            # ONUs offline ao fim da hora
+
+
+class OverviewHistory(BaseModel):
+    hours: list[HourPoint]       # 24 pontos, do mais antigo para agora

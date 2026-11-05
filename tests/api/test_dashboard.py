@@ -179,3 +179,26 @@ async def test_operador_pode_reconhecer(client, net, pool):
     op = {"Authorization": f"Bearer {login.json()['access_token']}"}
     [cut] = (await client.get("/api/alarms", headers=op)).json()["items"]
     assert (await client.post(f"/api/alarms/{cut['id']}/ack", headers=op)).status_code == 200
+
+
+async def test_historico_24h(client, net):
+    h = (await get(client, net, "/overview/history"))["hours"]
+    assert len(h) == 24 and all(p["open"] == 0 and p["onus_offline"] == 0 for p in h)
+
+    await net["fiber_cut"]()
+    h = (await get(client, net, "/overview/history"))["hours"]
+    now = h[-1]
+    # a hora atual: 1 alarme crítico aberto (o rompimento), 8 ONUs offline dentro dele
+    assert (now["critical"], now["major"], now["other"], now["open"], now["onus_offline"]) == (1, 0, 0, 1, 8)
+    assert h[0]["t"] < now["t"]
+
+    ov = await get(client, net, "/overview")
+    assert ov["customers_offline"] == 0          # sem clientes importados
+
+
+async def test_historico_isolado_por_provedor(client, net):
+    await net["fiber_cut"]()
+    other = await signup(client, company="Provedor B", email="admin@b.com.br")
+    resp = await client.get("/api/overview/history", headers=other)
+    assert resp.status_code == 200
+    assert all(p["open"] == 0 and p["onus_offline"] == 0 and p["critical"] == 0 for p in resp.json()["hours"])
