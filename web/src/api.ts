@@ -509,3 +509,26 @@ export interface EscalationRule {
   created_at: string;
   escalations_30d: number;
 }
+
+// ------------------------------------------------------------------ auditoria
+
+export type AuditCategory = "auth" | "user" | "olt" | "channel" | "escalation" | "maintenance" | "customer";
+
+export interface AuditEntry {
+  id: string;
+  at: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  action: string;
+  action_label: string;
+  target_type: string | null;
+  target_id: string | null;
+  target_label: string | null;
+  details: Record<string, unknown>;
+  ip: string | null;
+}
+
+export interface AuditPage {
+  items: AuditEntry[];
+  total: number;
+}

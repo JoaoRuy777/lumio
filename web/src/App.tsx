@@ -26,6 +26,7 @@ const TvPage = lazy(() => import("./pages/TvPage").then((m) => ({ default: m.TvP
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { UsersPage } from "./pages/UsersPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
+import { AuditPage } from "./pages/AuditPage";
 
 export function App() {
   const [loggedIn, setLoggedIn] = useState(() => session.get() !== null);
@@ -81,6 +82,7 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
           }
         />
         <Route path="manutencao" element={<MaintenancePage />} />
+        <Route path="auditoria" element={<MeGate>{(me) => <AuditPage me={me} />}</MeGate>} />
         <Route path="clientes" element={<MeGate>{(me) => <CustomersPage me={me} />}</MeGate>} />
         <Route
           path="onus/:id"
@@ -107,7 +109,7 @@ function MeGate({ children }: { children: (me: Me) => ReactNode }) {
   return data ? <>{children(data)}</> : <p className="text-sm text-slate-500">Carregando…</p>;
 }
 
-type NavItem = { to: string; label: string; icon: IconName; end?: boolean; badge?: "alarms" };
+type NavItem = { to: string; label: string; icon: IconName; end?: boolean; badge?: "alarms"; adminOnly?: boolean };
 const NAV: { title: string; items: NavItem[] }[] = [
   {
     title: "Monitoramento",
@@ -138,6 +140,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
     items: [
       { to: "/notifications", label: "Notificações", icon: "notifications" },
       { to: "/users", label: "Usuários", icon: "users" },
+      { to: "/auditoria", label: "Auditoria", icon: "audit", adminOnly: true },
     ],
   },
 ];
@@ -173,7 +176,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         >
           <div className="flex items-center justify-between px-2">
             <Logo size={30} onDark subtitle={me?.tenant_name} />
-            <button className="rounded-md p-1 text-[#c9d2de] hover:bg-white/10 lg:hidden" onClick={() => setDrawer(false)} aria-label="Fechar menu">
+            <button
+              className="rounded-md p-1 text-[#c9d2de] hover:bg-white/10 lg:hidden"
+              onClick={() => setDrawer(false)}
+              aria-label="Fechar menu"
+            >
               <Icon name="close" />
             </button>
           </div>
@@ -181,30 +188,43 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             {NAV.map((group) => (
               <div key={group.title} className="flex flex-col gap-0.5">
                 <span className="px-2.5 pb-1 text-[11px] font-semibold tracking-wider text-[#8a96a8] uppercase">{group.title}</span>
-                {group.items.map((item) => (
-                  <NavLink key={item.to} to={item.to} end={item.end} className={navClass}>
-                    <Icon name={item.icon} />
-                    <span className="flex-1">{item.label}</span>
-                    {item.badge === "alarms" && open > 0 && (
-                      <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] leading-none font-bold text-white tabular-nums" aria-label={`${open} abertos`}>
-                        {open}
-                      </span>
-                    )}
-                  </NavLink>
-                ))}
+                {group.items
+                  .filter((item) => !item.adminOnly || me?.role === "admin")
+                  .map((item) => (
+                    <NavLink key={item.to} to={item.to} end={item.end} className={navClass}>
+                      <Icon name={item.icon} />
+                      <span className="flex-1">{item.label}</span>
+                      {item.badge === "alarms" && open > 0 && (
+                        <span
+                          className="rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] leading-none font-bold text-white tabular-nums"
+                          aria-label={`${open} abertos`}
+                        >
+                          {open}
+                        </span>
+                      )}
+                    </NavLink>
+                  ))}
               </div>
             ))}
           </nav>
           {me && (
             <div className="mt-auto flex items-center gap-2.5 border-t border-white/10 px-2 pt-4">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#134e4a] text-xs font-semibold text-[#5eead4]" aria-hidden>
+              <span
+                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#134e4a] text-xs font-semibold text-[#5eead4]"
+                aria-hidden
+              >
                 {initials(me.name)}
               </span>
               <NavLink to="/conta" className="flex min-w-0 flex-1 flex-col leading-tight" title="Minha conta">
                 <span className="truncate text-sm font-semibold text-white hover:underline">{me.name}</span>
                 <span className="text-xs text-[#8a96a8]">{me.role === "admin" ? "Administrador" : "Operador"}</span>
               </NavLink>
-              <button className="rounded-md p-1.5 text-[#8a96a8] hover:bg-white/10 hover:text-white" onClick={onLogout} aria-label="Sair" title="Sair">
+              <button
+                className="rounded-md p-1.5 text-[#8a96a8] hover:bg-white/10 hover:text-white"
+                onClick={onLogout}
+                aria-label="Sair"
+                title="Sair"
+              >
                 <Icon name="logout" className="size-4" />
               </button>
             </div>
@@ -213,7 +233,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-surface/95 backdrop-blur">
           <div className="flex items-center gap-3 px-4 py-2.5 lg:px-8">
-            <button className="-ml-1 rounded-md p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setDrawer(true)} aria-label="Abrir menu">
+            <button
+              className="-ml-1 rounded-md p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden"
+              onClick={() => setDrawer(true)}
+              aria-label="Abrir menu"
+            >
               <Icon name="menu" className="size-5" />
             </button>
             <span className="lg:hidden">
