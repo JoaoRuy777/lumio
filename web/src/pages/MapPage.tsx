@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, type Customer, type CustomerState, type MapData } from "../api";
-import { Card } from "../components/ui";
+import { Card, Loading } from "../components/ui";
 import { NetworkMap, type FocusTarget } from "../components/NetworkMap";
 import { STATE_COLOR, STATE_LABEL } from "../mapStates";
 
@@ -40,14 +40,20 @@ export function MapPage() {
     });
   const go = (c: Customer) => c.lat !== null && c.lon !== null && setFocus({ lat: c.lat, lon: c.lon, key: Date.now() });
 
-  if (isPending) return <p className="text-sm text-slate-500">Carregando mapa…</p>;
-  if (error || !data) return <p role="alert" className="text-sm text-red-700">Erro ao carregar o mapa.</p>;
+  if (isPending) return <Loading rows={6} />;
+  if (error || !data)
+    return (
+      <p role="alert" className="text-sm text-red-700">
+        Erro ao carregar o mapa.
+      </p>
+    );
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Mapa da rede</h1>
+          <p className="text-sm text-slate-500">Monitoramento</p>
+          <h1 className="text-2xl font-bold tracking-tight">Mapa da rede</h1>
           <p className="text-sm text-slate-500">
             {data.customers.length} clientes no mapa · {data.olts.length} OLTs · atualiza sozinho
           </p>

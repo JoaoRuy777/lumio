@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router";
 import { api, query, type AtRiskOnu, type Alarm, type Customer, type Onu, type Page, type Readings } from "../api";
 import { AlarmTable } from "../components/AlarmTable";
 import { RxChart } from "../components/RxChart";
-import { Card } from "../components/ui";
+import { Card, Loading } from "../components/ui";
 import { ago, dateTime, dbm } from "../format";
 import { OnuState } from "./OnusPage";
 
@@ -33,8 +33,13 @@ export function OnuPage() {
   const risk = useQuery({ queryKey: ["at-risk"], queryFn: () => api<AtRiskOnu[]>("/onus-at-risk"), refetchInterval: 60_000 });
   const trend = risk.data?.find((r) => r.onu_id === id);
 
-  if (onu.isPending) return <p className="text-sm text-slate-500">Carregando…</p>;
-  if (onu.error) return <p role="alert" className="text-sm text-red-700">ONU não encontrada.</p>;
+  if (onu.isPending) return <Loading rows={5} />;
+  if (onu.error)
+    return (
+      <p role="alert" className="text-sm text-red-700">
+        ONU não encontrada.
+      </p>
+    );
   const o = onu.data;
 
   return (
@@ -43,7 +48,7 @@ export function OnuPage() {
         <Link to="/onus" className="text-sm text-slate-500 hover:underline">
           ← ONUs
         </Link>
-        <h1 className="mt-1 font-mono text-2xl font-semibold tracking-tight">{o.serial ?? "ONU sem serial"}</h1>
+        <h1 className="mt-1 font-mono text-2xl font-bold tracking-tight">{o.serial ?? "ONU sem serial"}</h1>
         <p className="text-sm text-slate-600">
           <Link className="hover:underline" to={`/olts/${o.olt_id}`}>
             {o.olt_name}
@@ -53,7 +58,10 @@ export function OnuPage() {
       </div>
 
       {customer.data && (
-        <section className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-slate-200 bg-surface px-4 py-3 text-sm shadow-sm" aria-label="Cliente">
+        <section
+          className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-slate-200 bg-surface px-4 py-3 text-sm"
+          aria-label="Cliente"
+        >
           <p className="font-medium">{customer.data.name}</p>
           {customer.data.phone && <p className="text-slate-600">{customer.data.phone}</p>}
           <p className="text-slate-600">{[customer.data.address, customer.data.district].filter(Boolean).join(" · ")}</p>
@@ -65,13 +73,16 @@ export function OnuPage() {
       )}
       {trend && (
         <p role="status" className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <b>Sinal piorando:</b> {trend.slope_db_day.toLocaleString("pt-BR")} dB por dia nas últimas leituras. Nesse ritmo passa do
-          limite de alarme (-27 dBm) em {trend.days_to_limit < 1 ? `cerca de ${Math.max(1, Math.round(trend.days_to_limit * 24))} h` : `cerca de ${Math.round(trend.days_to_limit)} dias`}.
-          Vale verificar conectores e o cabo do cliente antes de ele cair.
+          <b>Sinal piorando:</b> {trend.slope_db_day.toLocaleString("pt-BR")} dB por dia nas últimas leituras. Nesse ritmo passa do limite
+          de alarme (-27 dBm) em{" "}
+          {trend.days_to_limit < 1
+            ? `cerca de ${Math.max(1, Math.round(trend.days_to_limit * 24))} h`
+            : `cerca de ${Math.round(trend.days_to_limit)} dias`}
+          . Vale verificar conectores e o cabo do cliente antes de ele cair.
         </p>
       )}
 
-      <dl className="grid gap-4 rounded-xl border border-slate-200 bg-surface p-4 shadow-sm sm:grid-cols-4">
+      <dl className="grid gap-4 rounded-xl border border-slate-200 bg-surface p-4 sm:grid-cols-4">
         <div>
           <dt className="text-sm text-slate-500">Situação</dt>
           <dd className="mt-1">
@@ -111,7 +122,7 @@ export function OnuPage() {
           </div>
         }
       >
-        {readings.data ? <RxChart readings={readings.data} hours={hours} /> : <p className="p-6 text-sm text-slate-500">Carregando…</p>}
+        {readings.data ? <RxChart readings={readings.data} hours={hours} /> : <Loading rows={6} />}
       </Card>
 
       <Card title="Alarmes desta ONU">{alarms.data && <AlarmTable alarms={alarms.data.items} history />}</Card>

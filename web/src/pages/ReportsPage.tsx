@@ -1,6 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { api, ApiError, downloadFile, query, type AlarmKind, type AlarmsReport, type AttendanceReport, type AvailabilityReport } from "../api";
+import {
+  api,
+  ApiError,
+  downloadFile,
+  query,
+  type AlarmKind,
+  type AlarmsReport,
+  type AttendanceReport,
+  type AvailabilityReport,
+} from "../api";
 import { Button, Card, inputClass, StatTile, td, th } from "../components/ui";
 import { humanMinutes, kindLabel } from "../format";
 
@@ -21,9 +30,9 @@ export function periodParams(preset: Preset, start: string, end: string, now = n
     return { from: new Date(now.getTime() - Number(preset) * 86_400_000).toISOString(), to: now.toISOString() };
   }
   if (!start || !end) return null;
-  const from = new Date(`${start}T00:00:00`);           // meia-noite no fuso do navegador
+  const from = new Date(`${start}T00:00:00`); // meia-noite no fuso do navegador
   const to = new Date(`${end}T00:00:00`);
-  to.setDate(to.getDate() + 1);                          // "até" inclui o dia inteiro
+  to.setDate(to.getDate() + 1); // "até" inclui o dia inteiro
   return from < to ? { from: from.toISOString(), to: to.toISOString() } : null;
 }
 
@@ -64,11 +73,19 @@ export function ReportsPage() {
     }
   }
 
-  const presets: [Preset, string][] = [["1", "24 horas"], ["7", "7 dias"], ["30", "30 dias"], ["custom", "Escolher datas"]];
+  const presets: [Preset, string][] = [
+    ["1", "24 horas"],
+    ["7", "7 dias"],
+    ["30", "30 dias"],
+    ["custom", "Escolher datas"],
+  ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Relatórios</h1>
+      <div>
+        <p className="text-sm text-slate-500">Atendimento</p>
+        <h1 className="text-2xl font-bold tracking-tight">Relatórios</h1>
+      </div>
 
       <div className="flex flex-wrap items-end gap-4">
         <div role="group" aria-label="Período" className="inline-flex rounded-lg border border-slate-200 bg-surface p-0.5">
@@ -108,8 +125,16 @@ export function ReportsPage() {
       {params === null && <p className="text-sm text-amber-800">Escolha um período válido.</p>}
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatTile label="Disponibilidade da rede" value={pct(availability.data?.overall_availability_pct)} detail="média das ONUs, ponderada pelo tempo" />
-        <StatTile label="Alarmes no período" value={alarms.data?.total ?? "—"} detail={alarms.data ? `${alarms.data.open} ainda abertos` : undefined} />
+        <StatTile
+          label="Disponibilidade da rede"
+          value={pct(availability.data?.overall_availability_pct)}
+          detail="média das ONUs, ponderada pelo tempo"
+        />
+        <StatTile
+          label="Alarmes no período"
+          value={alarms.data?.total ?? "—"}
+          detail={alarms.data ? `${alarms.data.open} ainda abertos` : undefined}
+        />
         <StatTile label="Tempo médio até normalizar" value={minutes(alarms.data?.mttr_min)} detail="MTTR dos alarmes encerrados" />
       </div>
 
@@ -211,7 +236,15 @@ export function ReportsPage() {
   );
 }
 
-function AttendanceSection({ report, onDownload, disabled }: { report?: AttendanceReport; onDownload: (f: "csv" | "pdf") => void; disabled: boolean }) {
+function AttendanceSection({
+  report,
+  onDownload,
+  disabled,
+}: {
+  report?: AttendanceReport;
+  onDownload: (f: "csv" | "pdf") => void;
+  disabled: boolean;
+}) {
   const s = report?.summary;
   const maxTaken = Math.max(1, ...(report?.operators.map((o) => o.taken) ?? [1]));
   return (
@@ -243,7 +276,9 @@ function AttendanceSection({ report, onDownload, disabled }: { report?: Attendan
         <StatTile
           label="TMA"
           value={humanMinutes(s?.tma_min)}
-          detail={s?.tma_max_min != null ? `tempo médio de atendimento · maior: ${humanMinutes(s.tma_max_min)}` : "tempo médio de atendimento"}
+          detail={
+            s?.tma_max_min != null ? `tempo médio de atendimento · maior: ${humanMinutes(s.tma_max_min)}` : "tempo médio de atendimento"
+          }
         />
         <StatTile
           label={`Assumidos em até ${s?.sla_assume_min ?? 15} min`}
@@ -317,8 +352,8 @@ function AttendanceSection({ report, onDownload, disabled }: { report?: Attendan
           <p className="px-4 py-6 text-sm text-slate-500">Nenhum chamado encerrado no período.</p>
         )}
         <p className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-          TME: da abertura até alguém assumir. TMA: de assumido até o operador encerrar. Tempo em atendimento: soma dos
-          trechos em que o chamado ficou com cada um (transferências dividem o tempo).
+          TME: da abertura até alguém assumir. TMA: de assumido até o operador encerrar. Tempo em atendimento: soma dos trechos em que o
+          chamado ficou com cada um (transferências dividem o tempo).
         </p>
       </Card>
     </section>

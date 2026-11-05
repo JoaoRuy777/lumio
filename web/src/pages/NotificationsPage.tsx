@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { EscalationRules } from "../components/EscalationRules";
 import { Fragment, useState, type FormEvent } from "react";
 import { api, ApiError, type Channel, type ChannelCreated, type ChannelType, type Delivery, type Me, type Severity } from "../api";
-import { Button, Card, Field, inputClass, SeverityIcon, td, th } from "../components/ui";
+import { Button, Card, EmptyState, Field, inputClass, Loading, SeverityIcon, td, th } from "../components/ui";
 import { ago, dateTime, kindLabel, severityLabel } from "../format";
 
 const SEVERITIES: Severity[] = ["critical", "major", "minor", "warning"];
@@ -134,7 +134,7 @@ function Deliveries({ channel }: { channel: Channel }) {
     queryFn: () => api<Delivery[]>(`/notification-channels/${channel.id}/deliveries`),
     refetchInterval: 5_000,
   });
-  if (!data) return <p className="px-4 py-3 text-sm text-slate-500">Carregando…</p>;
+  if (!data) return <Loading rows={2} />;
   if (data.length === 0) return <p className="px-4 py-3 text-sm text-slate-500">Nenhuma entrega ainda.</p>;
   return (
     <table className="w-full text-sm" aria-label={`Entregas do canal ${channel.name}`}>
@@ -195,7 +195,8 @@ export function NotificationsPage({ me }: { me: Me }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Notificações</h1>
+          <p className="text-sm text-slate-500">Gestão</p>
+          <h1 className="text-2xl font-bold tracking-tight">Notificações</h1>
           <p className="text-sm text-slate-500">Para onde a Lumio avisa quando um alarme abre ou normaliza.</p>
         </div>
         {isAdmin && !adding && <Button onClick={() => setAdding(true)}>Novo canal</Button>}
@@ -229,9 +230,12 @@ export function NotificationsPage({ me }: { me: Me }) {
 
       <Card title="Canais">
         {isPending ? (
-          <p className="p-6 text-sm text-slate-500">Carregando…</p>
+          <Loading />
         ) : !data?.length ? (
-          <p className="px-4 py-10 text-center text-sm text-slate-500">Nenhum canal ainda. Sem canal, os alarmes aparecem só no painel.</p>
+          <EmptyState
+            title="Nenhum canal ainda."
+            text="Sem canal, os alarmes aparecem só no painel. Crie um canal de e-mail ou webhook para ser avisado."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

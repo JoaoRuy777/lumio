@@ -4,7 +4,7 @@ import { api, query, type Alarm, type Me, type Page, type Severity } from "../ap
 import { AlarmTable } from "../components/AlarmTable";
 import { MaintenanceBanner } from "../components/MaintenanceBanner";
 import { Ticket } from "../components/Ticket";
-import { Card, Pager, SeverityIcon } from "../components/ui";
+import { Card, Loading, Pager, SeverityIcon } from "../components/ui";
 import { severityLabel } from "../format";
 
 const LIMIT = 50;
@@ -123,7 +123,7 @@ export function AlarmsPage() {
       <div className={selected ? "grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(400px,460px)]" : ""}>
         <Card className="min-w-0">
           {isPending ? (
-            <p className="p-6 text-sm text-slate-500">Carregando…</p>
+            <Loading rows={5} />
           ) : error ? (
             <p role="alert" className="p-6 text-sm text-red-700">
               Erro ao carregar alarmes: {error.message}
@@ -133,7 +133,7 @@ export function AlarmsPage() {
               <AlarmTable
                 alarms={data.items}
                 history={tab === "cleared"}
-              compact={!!selected}
+                compact={!!selected}
                 emptyText={tab === "mine" ? "Nenhum chamado com você agora. Assuma um na aba Abertos." : undefined}
                 selectedId={selected}
                 onSelect={(a) => update({ chamado: a.id })}
@@ -150,7 +150,7 @@ export function AlarmsPage() {
             {me.data ? (
               <Ticket key={selected} id={selected} me={me.data} layout="panel" onClose={() => update({ chamado: null })} />
             ) : (
-              <p className="text-sm text-slate-500">Carregando…</p>
+              <Loading rows={5} />
             )}
           </aside>
         )}

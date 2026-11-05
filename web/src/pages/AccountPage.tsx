@@ -36,7 +36,8 @@ export function AccountPage({ me }: { me: Me }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Minha conta</h1>
+        <p className="text-sm text-slate-500">Conta</p>
+        <h1 className="text-2xl font-bold tracking-tight">Minha conta</h1>
         <p className="text-sm text-slate-500">
           {me.name} · {me.email} · {roleLabel[me.role]} em {me.tenant_name}
         </p>
@@ -44,13 +45,36 @@ export function AccountPage({ me }: { me: Me }) {
       <Card title="Trocar senha">
         <form onSubmit={submit} className="max-w-md space-y-4 p-4" aria-label="Trocar senha">
           <Field label="Senha atual">
-            <input className={inputClass} type="password" autoComplete="current-password" required value={form.current} onChange={(e) => setForm({ ...form, current: e.target.value })} />
+            <input
+              className={inputClass}
+              type="password"
+              autoComplete="current-password"
+              required
+              value={form.current}
+              onChange={(e) => setForm({ ...form, current: e.target.value })}
+            />
           </Field>
           <Field label="Senha nova" hint="mínimo de 8 caracteres">
-            <input className={inputClass} type="password" autoComplete="new-password" minLength={8} required value={form.next} onChange={(e) => setForm({ ...form, next: e.target.value })} />
+            <input
+              className={inputClass}
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              value={form.next}
+              onChange={(e) => setForm({ ...form, next: e.target.value })}
+            />
           </Field>
           <Field label="Repita a senha nova">
-            <input className={inputClass} type="password" autoComplete="new-password" minLength={8} required value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} />
+            <input
+              className={inputClass}
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              value={form.confirm}
+              onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+            />
           </Field>
           {error && (
             <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">

@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { api, ApiError, type Alarm, type AppUser, type Cause, type Me, type TimelineItem } from "../api";
 import { Children } from "./AlarmTable";
 import { Icon } from "./icons";
-import { AlarmStatusBadge, Button, Card, Field, inputClass, SeverityBadge } from "./ui";
+import { AlarmStatusBadge, Button, Card, Field, inputClass, Loading, SeverityBadge } from "./ui";
 import { causeLabel, dateTime, dbm, kindLabel, location, stopwatch } from "../format";
 import { useNow } from "../useNow";
 
@@ -155,7 +155,7 @@ export function Ticket({ id, me, layout = "page", onClose }: { id: string; me: M
     onError: (e) => setError(e instanceof ApiError ? e.message : "não foi possível salvar"),
   });
 
-  if (alarm.isPending) return <p className="text-sm text-slate-500">Carregando…</p>;
+  if (alarm.isPending) return <Loading rows={5} />;
   if (alarm.error || !alarm.data) {
     return (
       <p role="alert" className="text-sm text-red-700">
@@ -414,7 +414,7 @@ export function Ticket({ id, me, layout = "page", onClose }: { id: string; me: M
             </Button>
           </form>
         )}
-        {timeline.data ? <Timeline items={timeline.data} /> : <p className="p-4 text-sm text-slate-500">Carregando…</p>}
+        {timeline.data ? <Timeline items={timeline.data} /> : <Loading />}
       </Card>
     </section>
   );

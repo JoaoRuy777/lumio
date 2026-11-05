@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, query, type OltList, type Onu, type Page } from "../api";
-import { Card, inputClass, Pager, td, th } from "../components/ui";
+import { Card, EmptyState, inputClass, Loading, Pager, td, th } from "../components/ui";
 import { ago, dbm, kindLabel, RX_LIMIT_DBM } from "../format";
 
 const LIMIT = 100;
@@ -55,7 +55,10 @@ export function OnusPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">ONUs</h1>
+      <div>
+        <p className="text-sm text-slate-500">Rede</p>
+        <h1 className="text-2xl font-bold tracking-tight">ONUs</h1>
+      </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">
@@ -88,19 +91,25 @@ export function OnusPage() {
         </label>
         <label className="ml-auto text-sm">
           <span className="mb-1 block text-slate-600">Serial</span>
-          <input className={inputClass} type="search" placeholder="buscar serial" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input
+            className={inputClass}
+            type="search"
+            placeholder="buscar serial"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </label>
       </div>
 
       <Card>
         {isPending ? (
-          <p className="p-6 text-sm text-slate-500">Carregando…</p>
+          <Loading rows={6} />
         ) : error ? (
           <p role="alert" className="p-6 text-sm text-red-700">
             Erro ao carregar ONUs: {error.message}
           </p>
         ) : data.items.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-slate-500">Nenhuma ONU com esses filtros.</p>
+          <EmptyState icon="search" title="Nenhuma ONU com esses filtros." text="Tente limpar os filtros ou buscar pelo serial completo." />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -130,12 +139,16 @@ export function OnusPage() {
                       <td className={td}>
                         <OnuState online={o.online} />
                       </td>
-                      <td className={`${td} text-right tabular-nums ${o.rx_dbm !== null && o.rx_dbm < RX_LIMIT_DBM ? "font-medium text-red-700" : ""}`}>
+                      <td
+                        className={`${td} text-right tabular-nums ${o.rx_dbm !== null && o.rx_dbm < RX_LIMIT_DBM ? "font-medium text-red-700" : ""}`}
+                      >
                         {o.online ? dbm(o.rx_dbm) : "—"}
                       </td>
                       <td className={`${td} text-right tabular-nums`}>{o.online ? dbm(o.tx_dbm) : "—"}</td>
                       <td className={`${td} whitespace-nowrap text-slate-600`}>{ago(o.last_change_at)}</td>
-                      <td className={`${td} text-xs`}>{o.active_alarms.map((k) => kindLabel[k]).join(", ") || <span className="text-slate-400">—</span>}</td>
+                      <td className={`${td} text-xs`}>
+                        {o.active_alarms.map((k) => kindLabel[k]).join(", ") || <span className="text-slate-400">—</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

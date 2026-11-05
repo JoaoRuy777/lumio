@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { api, ApiError, downloadFile, query, type AuditPage as AuditData, type AuditCategory, type Me } from "../api";
-import { Button, Card, inputClass, Pager, td, th } from "../components/ui";
+import { Button, Card, inputClass, Loading, Pager, td, th } from "../components/ui";
 import { dateTime } from "../format";
 
 const LIMIT = 50;
@@ -201,7 +201,7 @@ export function AuditPage({ me }: { me: Me }) {
 
       <Card>
         {isPending ? (
-          <p className="p-6 text-sm text-slate-500">Carregando…</p>
+          <Loading rows={6} />
         ) : loadError ? (
           <p role="alert" className="p-6 text-sm text-red-700">
             Erro ao carregar: {loadError.message}
