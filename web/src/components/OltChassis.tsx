@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { EmptyState } from "./ui";
 import type { ChassisOnu, ChassisPon } from "../api";
 import { dbm } from "../format";
 import { STATE_COLOR, STATE_LABEL } from "../mapStates";
@@ -22,6 +23,9 @@ function tooltip(o: ChassisOnu, pon: string) {
  * em vermelho: dá para ver o problema de longe.
  */
 export function OltChassis({ pons, oltId }: { pons: ChassisPon[]; oltId: string }) {
+  if (pons.length === 0) {
+    return <EmptyState title="Nenhuma PON descoberta ainda." text="Assim que a OLT responder ao SNMP, as portas PON e as ONUs aparecem aqui." />;
+  }
   const counts = Object.fromEntries(ORDER.map((s) => [s, 0])) as Record<ChassisOnu["state"], number>;
   for (const p of pons) for (const o of p.onus) counts[o.state]++;
 
