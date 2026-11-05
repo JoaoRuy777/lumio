@@ -5,6 +5,7 @@ import { api, ApiError, query, type Alarm, type Page, type Severity } from "../a
 import { ago, dateTime, dbm, duration, kindLabel, location, stopwatch } from "../format";
 import { useNow } from "../useNow";
 import { useLive } from "../live";
+import { useToast } from "../toast";
 import { AlarmStatusBadge, Button, EmptyState, Loading, SeverityBadge, td, th } from "./ui";
 
 // faixa colorida no começo da linha: a severidade se lê de longe (com o texto ao lado)
@@ -113,10 +114,12 @@ export function AlarmTable({
   const [error, setError] = useState<string | null>(null);
 
   const now = useNow();
+  const toast = useToast();
   const assume = useMutation({
     mutationFn: (a: Alarm) => api<Alarm>(`/alarms/${a.id}/assign`, { method: "POST", body: {} }),
     onSuccess: () => {
       setError(null);
+      toast("Chamado assumido");
       qc.invalidateQueries({ queryKey: ["alarms"] });
       qc.invalidateQueries({ queryKey: ["overview"] });
     },

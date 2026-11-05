@@ -6,6 +6,7 @@ import { Children } from "./AlarmTable";
 import { Icon } from "./icons";
 import { AlarmStatusBadge, Button, Card, Field, inputClass, Loading, SeverityBadge } from "./ui";
 import { causeLabel, dateTime, dbm, kindLabel, location, stopwatch } from "../format";
+import { useToast } from "../toast";
 import { useNow } from "../useNow";
 
 const CAUSES = Object.keys(causeLabel) as Cause[];
@@ -145,10 +146,17 @@ export function Ticket({ id, me, layout = "page", onClose }: { id: string; me: M
     queryFn: () => api<{ items: AppUser[] }>("/users"),
   });
 
+  const toast = useToast();
   const act = useMutation({
     mutationFn: ({ path, body }: { path: string; body?: unknown }) => api<Alarm>(`/alarms/${id}/${path}`, { method: "POST", body }),
-    onSuccess: () => {
+    onSuccess: (_, { path, body }) => {
       setError(null);
+      const transfer = path === "assign" && !!(body as { user_id?: string } | undefined)?.user_id;
+      toast(
+        transfer
+          ? "Chamado transferido"
+          : ({ assign: "Chamado assumido", notes: "Anotação registrada", close: "Chamado encerrado", reopen: "Chamado reaberto" } as Record<string, string>)[path] ?? "Salvo",
+      );
       qc.invalidateQueries({ queryKey: ["alarms"] });
       qc.invalidateQueries({ queryKey: ["overview"] });
     },
