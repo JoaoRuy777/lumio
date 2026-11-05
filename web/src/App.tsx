@@ -25,6 +25,7 @@ const MapPage = lazy(() => import("./pages/MapPage").then((m) => ({ default: m.M
 const TvPage = lazy(() => import("./pages/TvPage").then((m) => ({ default: m.TvPage })));
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { UsersPage } from "./pages/UsersPage";
+import { MaintenancePage } from "./pages/MaintenancePage";
 
 export function App() {
   const [loggedIn, setLoggedIn] = useState(() => session.get() !== null);
@@ -79,6 +80,7 @@ export function AppRoutes({ onLogout }: { onLogout: () => void }) {
             </Suspense>
           }
         />
+        <Route path="manutencao" element={<MaintenancePage />} />
         <Route path="clientes" element={<MeGate>{(me) => <CustomersPage me={me} />}</MeGate>} />
         <Route
           path="onus/:id"
@@ -128,6 +130,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
     items: [
       { to: "/olts", label: "OLTs", icon: "olts" },
       { to: "/onus", label: "ONUs", icon: "onus" },
+      { to: "/manutencao", label: "Manutenções", icon: "maintenance" },
     ],
   },
   {

@@ -176,9 +176,22 @@ class Processor:
             ctx.events.append({"type": "alarm.opened", "alarm_id": row["id"], "kind": ref.kind,
                                "severity": ref.severity, "olt_id": ctx.olt_id})
             log.info("alarme %s (%s) aberto em %.0f ms", ref.kind, ref.severity, row["latency_ms"])
-            if parent_id is None:            # ONU dentro de um rompimento já avisado: não avisa de novo
+            maintenance = await self._maintenance_window(ctx, pon_id)
+            if maintenance:                  # manutenção programada: aparece no painel, mas sem aviso
+                await ctx.conn.execute("UPDATE alarms SET maintenance_id = $2 WHERE id = $1", row["id"], maintenance)
+                log.info("alarme %s em janela de manutenção: sem notificação", ref.kind)
+            elif parent_id is None:          # ONU dentro de um rompimento já avisado: não avisa de novo
                 await self._enqueue_opened(ctx, row["id"], ref)
         return row["id"]
+
+    async def _maintenance_window(self, ctx: Ctx, pon_id: UUID | None) -> UUID | None:
+        """Janela de manutenção ativa no instante do evento: da OLT inteira ou da PON do alarme."""
+        return await ctx.conn.fetchval(
+            "SELECT id FROM maintenance_windows WHERE tenant_id = $1 AND olt_id = $2 AND cancelled_at IS NULL "
+            "AND starts_at <= $4 AND ends_at > $4 AND (pon_id IS NULL OR pon_id = $3) "
+            "ORDER BY pon_id NULLS LAST LIMIT 1",
+            ctx.tenant_id, ctx.olt_id, pon_id, ctx.ts,
+        )
 
     async def _enqueue_opened(self, ctx: Ctx, alarm_id: UUID, ref: AlarmRef) -> None:
         """Entrega para cada canal ativo que aceita a severidade (mesma transação do alarme)."""

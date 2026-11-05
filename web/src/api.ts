@@ -198,6 +198,8 @@ export interface Alarm {
   resolution_notes: string | null;
   customer_name: string | null;
   affected_customers: number;
+  maintenance_id?: string | null;
+  maintenance_reason?: string | null;
 }
 
 export interface Page<T> {
@@ -212,6 +214,7 @@ export interface Overview {
   rx_trend: number;
   customers: number;
   customers_offline?: number;
+  maintenance_active?: number;
   alarms: Record<Severity | "total", number>;
   recent_alarms: Alarm[];
 }
@@ -469,4 +472,24 @@ export interface AtRiskOnu {
   slope_db_day: number;
   points: number;
   days_to_limit: number;
+}
+
+// ------------------------------------------------------------------ manutenção programada
+
+export type MaintenanceState = "active" | "scheduled" | "finished" | "cancelled";
+
+export interface MaintenanceWindow {
+  id: string;
+  olt_id: string;
+  olt_name: string;
+  pon_id: string | null;
+  pon: string | null;
+  reason: string;
+  starts_at: string;
+  ends_at: string;
+  created_by: string | null;
+  created_at: string;
+  cancelled_at: string | null;
+  state: MaintenanceState;
+  alarms_silenced: number;
 }

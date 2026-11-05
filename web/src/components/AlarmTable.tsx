@@ -203,6 +203,14 @@ export function AlarmTable({
                 )}
                 <td className={td}>
                   <AlarmStatusBadge status={a.status} />
+                  {a.maintenance_id && (
+                    <span
+                      className="ml-1.5 inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 ring-1 ring-sky-600/20 ring-inset"
+                      title={`Manutenção programada: ${a.maintenance_reason ?? ""} (sem aviso por e-mail)`}
+                    >
+                      Manutenção
+                    </span>
+                  )}
                   <Attendance alarm={a} now={now} />
                 </td>
                 {!compact && (

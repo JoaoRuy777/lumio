@@ -353,3 +353,55 @@ def test_assinatura_e_backoff():
 
 def test_duracao_legivel():
     assert [notify.human_duration(s) for s in (12.4, 75, 3600 + 5 * 60)] == ["12 s", "1 min", "1 h 05 min"]
+
+
+# ------------------------------------------------------------------ manutenção programada
+
+async def window(pool, tenant_id, olt="olt-1", pon=None, start=-10, end=60, cancelled=False):
+    """Janela de manutenção relativa a agora (minutos)."""
+    olt_id = await pool.fetchval("SELECT id FROM olts WHERE tenant_id = $1 AND name = $2", tenant_id, olt)
+    pon_id = await pool.fetchval("SELECT id FROM pon_ports WHERE olt_id = $1 AND name = $2", olt_id, pon) if pon else None
+    return await pool.fetchval(
+        "INSERT INTO maintenance_windows (tenant_id, olt_id, pon_id, reason, starts_at, ends_at, cancelled_at) "
+        "VALUES ($1, $2, $3, 'troca da placa', now() + make_interval(mins => $4), now() + make_interval(mins => $5), "
+        "CASE WHEN $6 THEN now() END) RETURNING id", tenant_id, olt_id, pon_id, start, end, cancelled)
+
+
+async def test_manutencao_da_olt_silencia_os_avisos(processor, pool):
+    await add_channel(pool, processor.tenant_id, "noc", "email", "noc@a.com.br", min_severity="minor")
+    await processor.handle(rec("onu_status", onus=onus("0/1/0") + onus("0/1/1")))
+    mid = await window(pool, processor.tenant_id)
+
+    await processor.handle(rec("event", kind="olt_unreachable", source="poll"))
+    for i in range(8):
+        await processor.handle(rec("event", kind="onu_offline", source="trap", pon="0/1/1", onu=i))
+    # os alarmes aparecem no painel, marcados com a janela, mas nenhum aviso sai
+    rows = await pool.fetch("SELECT kind, maintenance_id FROM alarms WHERE parent_id IS NULL")
+    assert {r["kind"] for r in rows} == {"olt_unreachable", "pon_fiber_cut"}
+    assert all(r["maintenance_id"] == mid for r in rows)
+    assert await queue(pool) == []
+
+
+async def test_manutencao_de_uma_pon_nao_cala_as_outras(processor, pool):
+    await add_channel(pool, processor.tenant_id, "noc", "email", "noc@a.com.br", min_severity="minor")
+    await processor.handle(rec("onu_status", onus=onus("0/1/0") + onus("0/1/1")))
+    await window(pool, processor.tenant_id, pon="0/1/1")
+
+    await processor.handle(rec("event", kind="onu_offline", source="trap", pon="0/1/1", onu=2))   # na janela
+    await processor.handle(rec("event", kind="onu_offline", source="trap", pon="0/1/0", onu=2))   # fora
+    await processor.handle(rec("event", kind="olt_unreachable", source="poll"))                  # OLT: fora
+    assert sorted(r["kind"] for r in await queue(pool)) == ["olt_unreachable", "onu_offline"]
+    silenced = await pool.fetch("SELECT a.kind, p.name FROM alarms a JOIN pon_ports p ON p.id = a.pon_id "
+                                "WHERE a.maintenance_id IS NOT NULL")
+    assert [(r["kind"], r["name"]) for r in silenced] == [("onu_offline", "0/1/1")]
+
+
+async def test_janela_futura_ou_cancelada_nao_silencia(processor, pool):
+    await add_channel(pool, processor.tenant_id, "noc", "email", "noc@a.com.br", min_severity="minor")
+    await processor.handle(rec("onu_status", onus=onus()))
+    await window(pool, processor.tenant_id, start=30, end=90)                 # ainda não começou
+    await window(pool, processor.tenant_id, cancelled=True)                   # cancelada
+    await window(pool, processor.tenant_id, start=-120, end=-60)             # já terminou
+    await processor.handle(rec("event", kind="olt_unreachable", source="poll"))
+    assert [r["kind"] for r in await queue(pool)] == ["olt_unreachable"]
+    assert await pool.fetchval("SELECT maintenance_id FROM alarms") is None

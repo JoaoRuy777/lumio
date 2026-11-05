@@ -265,6 +265,8 @@ class AlarmOut(BaseModel):
     resolution_notes: str | None
     customer_name: str | None    # cliente da ONU (alarmes de ONU)
     affected_customers: int      # clientes nas ONUs de um rompimento
+    maintenance_id: UUID | None = None       # aberto durante manutenção programada (sem aviso)
+    maintenance_reason: str | None = None
 
 
 Cause = Literal["fiber_third_party", "fiber_natural", "power", "equipment", "customer",
@@ -304,6 +306,7 @@ class Overview(BaseModel):
     rx_trend: int = 0            # ONUs com sinal piorando (devem passar do limite em até 7 dias)
     customers: int = 0           # clientes importados
     customers_offline: int = 0   # clientes com a ONU offline agora
+    maintenance_active: int = 0  # janelas de manutenção em andamento
     alarms: dict[str, int]       # abertos (sem os agrupados) por severidade + total
     recent_alarms: list[AlarmOut]
 
