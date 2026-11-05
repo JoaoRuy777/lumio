@@ -118,7 +118,7 @@ export function OverviewPage() {
                 {/* uma magnitude só: barra de um tom, com o número escrito ao lado */}
                 <div className="flex min-w-56 flex-1 items-center gap-3">
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200" aria-hidden>
-                    <div className="h-full rounded-full bg-[#2a78d6]" style={{ width: `${pct}%` }} />
+                    <div className="h-full rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
                   </div>
                   <span className="text-sm tabular-nums text-slate-600">
                     {o.onus_online}/{o.onus_total} ONUs online

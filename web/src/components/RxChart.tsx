@@ -5,7 +5,7 @@ import { dateTime, dbm, RX_LIMIT_DBM } from "../format";
 
 // Uma série só: o título nomeia, sem caixa de legenda. Linha de 2 px na cor
 // da série 1; o limite de alarme é uma linha de referência rotulada.
-const SERIES = "#2a78d6";
+const SERIES = "#0e9f8e";
 const LIMIT = "#d03b3b";
 // cores pelas variáveis do tema: o gráfico acompanha o modo noturno
 const AXIS_TEXT = { fill: "var(--color-slate-500)", fontSize: 12 };
