@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { api, ApiError, session } from "../api";
 import { Button, Field, inputClass } from "../components/ui";
 import { ThemeToggle } from "../theme";
+import { Logo } from "../components/Logo";
 
 /** Aberta pelo link do e-mail de "esqueci minha senha" (/redefinir-senha?token=...). */
 export function ResetPasswordPage() {
@@ -37,7 +38,9 @@ export function ResetPasswordPage() {
     <main className="relative flex min-h-screen items-center justify-center px-4">
       <ThemeToggle className="absolute top-4 right-4" />
       <div className="w-full max-w-sm">
-        <h1 className="mb-6 text-3xl font-semibold tracking-tight text-brand-700">Lumio</h1>
+        <h1 className="mb-6">
+          <Logo size={44} />
+        </h1>
         <div className="space-y-4 rounded-xl border border-slate-200 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium">Criar senha nova</h2>
           {done ? (

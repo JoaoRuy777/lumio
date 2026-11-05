@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import { api, query, type Alarm, type AttendanceReport, type CustomerState, type MapData, type Me, type Overview, type Page } from "../api";
+import { Logo } from "../components/Logo";
 import { NetworkMap } from "../components/NetworkMap";
 import { SeverityIcon } from "../components/ui";
 import { humanMinutes, kindLabel, location, severityLabel, stopwatch } from "../format";
@@ -83,8 +84,8 @@ function Tv({ me }: { me: Me }) {
   return (
     <div className="flex min-h-screen flex-col gap-5 p-6">
       <header className="flex items-center justify-between gap-4">
-        <div className="flex items-baseline gap-3">
-          <span className="text-3xl font-semibold tracking-tight text-brand-700">Lumio</span>
+        <div className="flex items-center gap-4">
+          <Logo size={48} />
           <span className="text-xl text-slate-500">NOC · {me.tenant_name}</span>
         </div>
         <div className="flex items-center gap-5">

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError, session } from "../api";
 import { ThemeToggle } from "../theme";
+import { Logo } from "../components/Logo";
 import { Button, Field, inputClass } from "../components/ui";
 
 type Mode = "login" | "signup" | "forgot";
@@ -46,8 +47,10 @@ export function AuthPage({ onLogin }: { onLogin: () => void }) {
     <main className="relative flex min-h-screen items-center justify-center px-4">
       <ThemeToggle className="absolute top-4 right-4" />
       <div className="w-full max-w-sm">
-        <h1 className="mb-1 text-3xl font-semibold tracking-tight text-brand-700">Lumio</h1>
-        <p className="mb-6 text-sm text-slate-500">Monitoramento de OLTs para provedores</p>
+        <h1 className="mb-2">
+          <Logo size={44} />
+        </h1>
+        <p className="mb-6 text-sm text-slate-500">Monitoramento de redes GPON para provedores</p>
         <form onSubmit={submit} className="space-y-4 rounded-xl border border-slate-200 bg-surface p-6 shadow-sm">
           <h2 className="text-lg font-medium">{{ login: "Entrar", signup: "Criar conta do provedor", forgot: "Esqueci minha senha" }[mode]}</h2>
           {mode === "forgot" && <p className="text-sm text-slate-500">Mandamos para o seu e-mail um link para criar uma senha nova.</p>}
