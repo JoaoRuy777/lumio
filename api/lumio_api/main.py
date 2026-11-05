@@ -18,6 +18,33 @@ from .routers import alarms, audit_log, auth, channels, customers, escalation, e
 from .security import Cipher
 
 
+class SecurityHeaders:
+    """Respostas da API: nunca em cache (dados do provedor), sem "farejar" o tipo e sem
+    abrir em iframe. ASGI puro, para não atrapalhar o SSE (/api/events)."""
+
+    HEADERS = [(b"x-content-type-options", b"nosniff"), (b"x-frame-options", b"DENY"),
+               (b"referrer-policy", b"strict-origin-when-cross-origin")]
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                names = {k.lower() for k, _ in headers}
+                headers += [h for h in self.HEADERS if h[0] not in names]
+                if b"cache-control" not in names:
+                    headers.append((b"cache-control", b"no-store"))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -34,6 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Lumio API", version="0.3.0", lifespan=lifespan,
                   docs_url="/api/docs", openapi_url="/api/openapi.json")
+    app.add_middleware(SecurityHeaders)
     api = APIRouter(prefix="/api")
 
     @api.get("/health", tags=["saúde"])
