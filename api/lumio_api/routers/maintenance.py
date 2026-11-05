@@ -7,9 +7,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field, model_validator
 
+from ..audit import audit
 from ..deps import TenantDb, User
 
 router = APIRouter(prefix="/maintenance", tags=["manutenção"])
@@ -96,23 +97,31 @@ async def list_windows(user: User, db: TenantDb, current: bool = False) -> list[
 
 @router.post("", response_model=MaintenanceOut, status_code=status.HTTP_201_CREATED,
              summary="Agenda uma janela de manutenção (OLT inteira ou uma PON)")
-async def create_window(body: MaintenanceIn, user: User, db: TenantDb) -> MaintenanceOut:
+async def create_window(body: MaintenanceIn, user: User, db: TenantDb, request: Request) -> MaintenanceOut:
     if not await db.fetchval("SELECT 1 FROM olts WHERE id = $1", body.olt_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "OLT não encontrada")
     if body.pon_id and not await db.fetchval("SELECT 1 FROM pon_ports WHERE id = $1 AND olt_id = $2",
                                              body.pon_id, body.olt_id):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "a PON não é desta OLT")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "a PON não é desta OLT")
     window_id = await db.fetchval(
         "INSERT INTO maintenance_windows (tenant_id, olt_id, pon_id, reason, starts_at, ends_at, created_by) "
         "VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
         user.tenant_id, body.olt_id, body.pon_id, body.reason.strip(), body.starts_at, body.ends_at, user.user_id,
     )
-    return await fetch_one(db, window_id)
+    w = await fetch_one(db, window_id)
+    await audit(db, user.tenant_id, user.user_id, "maintenance.create", request=request, target_type="maintenance",
+                target_id=window_id, label=where(w),
+                details={"reason": w.reason, "starts_at": w.starts_at, "ends_at": w.ends_at})
+    return w
+
+
+def where(w: MaintenanceOut) -> str:
+    return f"{w.olt_name} · PON {w.pon}" if w.pon else w.olt_name
 
 
 @router.post("/{window_id}/end", response_model=MaintenanceOut,
              summary="Encerra agora (em andamento) ou cancela (agendada)")
-async def end_window(window_id: UUID, user: User, db: TenantDb) -> MaintenanceOut:
+async def end_window(window_id: UUID, user: User, db: TenantDb, request: Request) -> MaintenanceOut:
     w = await fetch_one(db, window_id)
     if w.state == "scheduled":
         await db.execute("UPDATE maintenance_windows SET cancelled_at = now() WHERE id = $1", window_id)
@@ -120,4 +129,7 @@ async def end_window(window_id: UUID, user: User, db: TenantDb) -> MaintenanceOu
         await db.execute("UPDATE maintenance_windows SET ends_at = now() WHERE id = $1", window_id)
     else:
         raise HTTPException(status.HTTP_409_CONFLICT, "a janela já terminou")
+    await audit(db, user.tenant_id, user.user_id, "maintenance.cancel" if w.state == "scheduled" else "maintenance.end",
+                request=request, target_type="maintenance", target_id=window_id, label=where(w),
+                details={"reason": w.reason})
     return await fetch_one(db, window_id)

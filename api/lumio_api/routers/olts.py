@@ -10,6 +10,7 @@ import asyncpg
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from .. import snmp
+from ..audit import audit
 from ..deps import Admin, TenantDb, User, cipher, settings
 from ..schemas import (ConnectionTest, DiscoveryOut, OltCreate, OltList, OltOut, OltSaved, OltUpdate, PlanUsage,
                        SnmpAccess)
@@ -121,6 +122,8 @@ async def create_olt(body: OltCreate, user: Admin, db: TenantDb, request: Reques
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, f"já existe uma OLT chamada {body.name!r}")
     discovery = await _discover(request, db, olt_id, user.tenant_id, body.host, body.snmp_port, body.community)
+    await audit(db, user.tenant_id, user.user_id, "olt.create", request=request, target_type="olt", target_id=olt_id,
+                label=body.name.strip(), details={"host": body.host, "snmp_port": body.snmp_port})
     return OltSaved(olt=to_out(await _get(db, olt_id)), discovery=discovery)
 
 
@@ -134,6 +137,8 @@ async def get_olt(olt_id: UUID, user: User, db: TenantDb) -> OltOut:
 async def update_olt(olt_id: UUID, body: OltUpdate, user: Admin, db: TenantDb, request: Request) -> OltSaved:
     current = await _get(db, olt_id)
     changes = body.model_dump(exclude_unset=True, exclude_none=True)
+    # no log: o que mudou, sem o valor da community (segredo)
+    logged = {k: ("(alterada)" if k == "community" else v) for k, v in changes.items()}
     if "community" in changes:
         changes["community_enc"] = cipher(request).encrypt(changes.pop("community"))
     if "name" in changes:
@@ -151,12 +156,20 @@ async def update_olt(olt_id: UUID, body: OltUpdate, user: Admin, db: TenantDb, r
         row = await db.fetchrow("SELECT host, snmp_port, community_enc FROM olts WHERE id = $1", olt_id)
         discovery = await _discover(request, db, olt_id, current["tenant_id"], row["host"], row["snmp_port"],
                                     cipher(request).decrypt(row["community_enc"]))
+    if logged:
+        name = await db.fetchval("SELECT name FROM olts WHERE id = $1", olt_id)
+        await audit(db, user.tenant_id, user.user_id, "olt.update", request=request, target_type="olt",
+                    target_id=olt_id, label=name, details=logged)
     return OltSaved(olt=to_out(await _get(db, olt_id)), discovery=discovery)
 
 
 @router.delete("/{olt_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_olt(olt_id: UUID, user: Admin, db: TenantDb) -> Response:
-    if await db.execute("DELETE FROM olts WHERE id = $1", olt_id) == "DELETE 0":
+async def delete_olt(olt_id: UUID, user: Admin, db: TenantDb, request: Request) -> Response:
+    gone = await db.fetchrow("DELETE FROM olts WHERE id = $1 RETURNING name, host", olt_id)
+    if gone is not None:
+        await audit(db, user.tenant_id, user.user_id, "olt.delete", request=request, target_type="olt",
+                    target_id=olt_id, label=gone["name"], details={"host": gone["host"]})
+    if gone is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "OLT não encontrada")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

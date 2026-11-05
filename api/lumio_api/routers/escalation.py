@@ -8,9 +8,10 @@ from typing import Literal
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
+from ..audit import audit
 from ..deps import Admin, TenantDb, User
 
 router = APIRouter(prefix="/escalation-rules", tags=["escalonamento"])
@@ -64,7 +65,7 @@ async def fetch_rule(db: asyncpg.Connection, rule_id: UUID) -> RuleOut:
 
 async def check_channel(db: asyncpg.Connection, channel_id: UUID) -> None:
     if not await db.fetchval("SELECT 1 FROM notification_channels WHERE id = $1", channel_id):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "canal de notificação não encontrado")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "canal de notificação não encontrado")
 
 
 @router.get("", response_model=list[RuleOut], summary="Regras de escalonamento, da mais rápida para a mais lenta")
@@ -73,18 +74,22 @@ async def list_rules(user: User, db: TenantDb) -> list[RuleOut]:
 
 
 @router.post("", response_model=RuleOut, status_code=status.HTTP_201_CREATED, summary="Cria uma regra (admin)")
-async def create_rule(body: RuleIn, user: Admin, db: TenantDb) -> RuleOut:
+async def create_rule(body: RuleIn, user: Admin, db: TenantDb, request: Request) -> RuleOut:
     await check_channel(db, body.channel_id)
     rule_id = await db.fetchval(
         "INSERT INTO escalation_rules (tenant_id, name, min_severity, after_minutes, channel_id, enabled) "
         "VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
         user.tenant_id, body.name.strip(), body.min_severity, body.after_minutes, body.channel_id, body.enabled,
     )
-    return await fetch_rule(db, rule_id)
+    rule = await fetch_rule(db, rule_id)
+    await audit(db, user.tenant_id, user.user_id, "escalation.create", request=request, target_type="escalation_rule",
+                target_id=rule_id, label=rule.name,
+                details={"min_severity": rule.min_severity, "after_minutes": rule.after_minutes, "channel": rule.channel_name})
+    return rule
 
 
 @router.patch("/{rule_id}", response_model=RuleOut, summary="Altera ou liga/desliga uma regra (admin)")
-async def update_rule(rule_id: UUID, body: RuleUpdate, user: Admin, db: TenantDb) -> RuleOut:
+async def update_rule(rule_id: UUID, body: RuleUpdate, user: Admin, db: TenantDb, request: Request) -> RuleOut:
     changes = body.model_dump(exclude_none=True)
     if "channel_id" in changes:
         await check_channel(db, changes["channel_id"])
@@ -92,11 +97,18 @@ async def update_rule(rule_id: UUID, body: RuleUpdate, user: Admin, db: TenantDb
         cols = ", ".join(f"{k} = ${i}" for i, k in enumerate(changes, 2))
         if await db.execute(f"UPDATE escalation_rules SET {cols} WHERE id = $1", rule_id, *changes.values()) == "UPDATE 0":
             raise HTTPException(status.HTTP_404_NOT_FOUND, "regra não encontrada")
-    return await fetch_rule(db, rule_id)
+    rule = await fetch_rule(db, rule_id)
+    if changes:
+        await audit(db, user.tenant_id, user.user_id, "escalation.update", request=request,
+                    target_type="escalation_rule", target_id=rule_id, label=rule.name, details=changes)
+    return rule
 
 
 @router.delete("/{rule_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Apaga uma regra (admin)")
-async def delete_rule(rule_id: UUID, user: Admin, db: TenantDb) -> Response:
-    if await db.execute("DELETE FROM escalation_rules WHERE id = $1", rule_id) == "DELETE 0":
+async def delete_rule(rule_id: UUID, user: Admin, db: TenantDb, request: Request) -> Response:
+    name = await db.fetchval("DELETE FROM escalation_rules WHERE id = $1 RETURNING name", rule_id)
+    if name is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "regra não encontrada")
+    await audit(db, user.tenant_id, user.user_id, "escalation.delete", request=request,
+                target_type="escalation_rule", target_id=rule_id, label=name)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

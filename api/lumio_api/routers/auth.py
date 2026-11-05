@@ -8,7 +8,8 @@ import unicodedata
 import asyncpg
 from fastapi import APIRouter, HTTPException, Request, status
 
-from ..db import system_tx
+from ..audit import audit
+from ..db import system_tx, tenant_tx
 from ..deps import TenantDb, User, cipher, pool, settings
 from ..schemas import (ForgotPasswordIn, LoginIn, MeOut, PasswordChangeIn, PlanUsage, ResetPasswordIn, SignupIn,
                        TokenOut)
@@ -39,6 +40,9 @@ async def signup(body: SignupIn, request: Request) -> TokenOut:
                                       body.name.strip(), hash_password(body.password))
         except asyncpg.UniqueViolationError:
             raise HTTPException(status.HTTP_409_CONFLICT, "e-mail já cadastrado")
+    async with tenant_tx(pool(request), row["tenant_id"]) as conn:
+        await audit(conn, row["tenant_id"], row["user_id"], "auth.signup", request=request,
+                    target_type="tenant", target_id=row["tenant_id"], label=body.company.strip())
     return _token(request, row["user_id"], row["tenant_id"], "admin")
 
 
@@ -46,7 +50,12 @@ async def signup(body: SignupIn, request: Request) -> TokenOut:
 async def login(body: LoginIn, request: Request) -> TokenOut:
     async with system_tx(pool(request)) as conn:
         row = await conn.fetchrow("SELECT * FROM lumio_login_lookup($1)", body.email)
-    if not verify_password(row["password_hash"] if row else None, body.password):
+    ok = verify_password(row["password_hash"] if row else None, body.password)
+    if row:                                   # e-mail desconhecido não tem provedor onde registrar
+        async with tenant_tx(pool(request), row["tenant_id"]) as conn:
+            await audit(conn, row["tenant_id"], row["user_id"], "auth.login" if ok else "auth.login_failed",
+                        request=request, target_type="user", target_id=row["user_id"], label=body.email.lower())
+    if not ok:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "e-mail ou senha incorretos")
     return _token(request, row["user_id"], row["tenant_id"], row["role"], row["session_version"])
 
@@ -75,6 +84,8 @@ async def change_password(body: PasswordChangeIn, user: User, db: TenantDb, requ
     version = await db.fetchval(
         "UPDATE users SET password_hash = $2, session_version = session_version + 1 WHERE id = $1 "
         "RETURNING session_version", user.user_id, hash_password(body.new_password))
+    await audit(db, user.tenant_id, user.user_id, "auth.password_changed", request=request,
+                target_type="user", target_id=user.user_id)
     return _token(request, user.user_id, user.tenant_id, user.role, version)     # esta sessão continua
 
 

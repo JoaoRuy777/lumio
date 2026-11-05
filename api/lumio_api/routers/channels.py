@@ -11,6 +11,7 @@ import asyncpg
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field, TypeAdapter, ValidationError, model_validator
 
+from ..audit import audit
 from ..deps import Admin, TenantDb, User, cipher
 from ..schemas import Severity
 
@@ -126,11 +127,15 @@ async def create_channel(body: ChannelIn, user: Admin, db: TenantDb, request: Re
             cipher(request).encrypt(secret) if secret else None, body.min_severity, body.notify_clear, body.enabled)
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, f"já existe um canal chamado {body.name!r}")
+    await audit(db, user.tenant_id, user.user_id, "channel.create", request=request, target_type="channel",
+                target_id=channel_id, label=body.name.strip(),
+                details={"type": body.type, "target": body.target, "min_severity": body.min_severity})
     return ChannelCreated(channel=to_out(await _get(db, channel_id)), secret=secret)
 
 
 @router.patch("/{channel_id}", response_model=ChannelOut)
-async def update_channel(channel_id: UUID, body: ChannelUpdate, user: Admin, db: TenantDb) -> ChannelOut:
+async def update_channel(channel_id: UUID, body: ChannelUpdate, user: Admin, db: TenantDb,
+                         request: Request) -> ChannelOut:
     current = await _get(db, channel_id)
     changes = body.model_dump(exclude_none=True)
     if "target" in changes:
@@ -145,13 +150,18 @@ async def update_channel(channel_id: UUID, body: ChannelUpdate, user: Admin, db:
             await db.execute(f"UPDATE notification_channels SET {sets} WHERE id = $1", channel_id, *changes.values())
         except asyncpg.UniqueViolationError:
             raise HTTPException(status.HTTP_409_CONFLICT, "já existe um canal com esse nome")
+        await audit(db, user.tenant_id, user.user_id, "channel.update", request=request, target_type="channel",
+                    target_id=channel_id, label=changes.get("name", current["name"]), details=changes)
     return to_out(await _get(db, channel_id))
 
 
 @router.delete("/{channel_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_channel(channel_id: UUID, user: Admin, db: TenantDb) -> Response:
-    if await db.execute("DELETE FROM notification_channels WHERE id = $1", channel_id) == "DELETE 0":
+async def delete_channel(channel_id: UUID, user: Admin, db: TenantDb, request: Request) -> Response:
+    gone = await db.fetchrow("DELETE FROM notification_channels WHERE id = $1 RETURNING name, type, target", channel_id)
+    if gone is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "canal não encontrado")
+    await audit(db, user.tenant_id, user.user_id, "channel.delete", request=request, target_type="channel",
+                target_id=channel_id, label=gone["name"], details={"type": gone["type"], "target": gone["target"]})
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -164,6 +174,8 @@ async def rotate_secret(channel_id: UUID, user: Admin, db: TenantDb, request: Re
     secret = secrets.token_urlsafe(32)
     await db.execute("UPDATE notification_channels SET secret_enc = $2 WHERE id = $1",
                      channel_id, cipher(request).encrypt(secret))
+    await audit(db, user.tenant_id, user.user_id, "channel.rotate_secret", request=request, target_type="channel",
+                target_id=channel_id, label=row["name"])
     return ChannelCreated(channel=to_out(row), secret=secret)
 
 

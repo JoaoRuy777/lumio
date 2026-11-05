@@ -9,10 +9,11 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 
 from .. import trend
+from ..audit import audit
 from ..deps import Admin, TenantDb, User
 
 router = APIRouter(tags=["clientes e mapa"])
@@ -209,7 +210,7 @@ def parse_csv(text: str) -> tuple[list[tuple[int, dict]], list[ImportError_]]:
 
 @router.post("/customers/import", response_model=ImportResult,
              summary="Importa clientes de um CSV (serial;nome;telefone;endereco;bairro;cidade;plano;latitude;longitude)")
-async def import_customers(body: ImportIn, user: Admin, db: TenantDb) -> ImportResult:
+async def import_customers(body: ImportIn, user: Admin, db: TenantDb, request: Request) -> ImportResult:
     rows, errors = parse_csv(body.csv)
     created = updated = 0
     for _, r in rows:
@@ -229,12 +230,19 @@ async def import_customers(body: ImportIn, user: Admin, db: TenantDb) -> ImportR
     unmatched = await db.fetchval(
         "SELECT count(*) FROM customers c WHERE c.onu_serial = ANY($1::text[]) "
         "AND NOT EXISTS (SELECT 1 FROM onus n WHERE n.serial = c.onu_serial)", [r["serial"] for _, r in rows])
+    await audit(db, user.tenant_id, user.user_id, "customer.import", request=request, target_type="customer",
+                label="importação CSV", details={"created": created, "updated": updated, "unmatched": unmatched,
+                                                 "errors": len(errors)})
     return ImportResult(created=created, updated=updated, unmatched=unmatched, errors=errors[:100])
 
 
 @router.delete("/customers/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_customer(customer_id: UUID, user: Admin, db: TenantDb) -> Response:
-    if await db.execute("DELETE FROM customers WHERE id = $1", customer_id) == "DELETE 0":
+async def delete_customer(customer_id: UUID, user: Admin, db: TenantDb, request: Request) -> Response:
+    gone = await db.fetchrow("DELETE FROM customers WHERE id = $1 RETURNING name, onu_serial", customer_id)
+    if gone is not None:
+        await audit(db, user.tenant_id, user.user_id, "customer.delete", request=request, target_type="customer",
+                    target_id=customer_id, label=gone["name"], details={"serial": gone["onu_serial"]})
+    if gone is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "cliente não encontrado")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
