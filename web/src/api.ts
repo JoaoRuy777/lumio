@@ -532,3 +532,20 @@ export interface AuditPage {
   items: AuditEntry[];
   total: number;
 }
+
+// ------------------------------------------------------------------ assistente de IA
+
+export interface AssistantStatus {
+  configured: boolean;
+  provider: string;
+  daily_limit: number;
+  remaining_today: number;
+}
+
+export interface AssistantReply {
+  reply: string;
+  mapping: Record<string, string>;
+  tools: string[];
+  model: string;
+  remaining_today: number;
+}

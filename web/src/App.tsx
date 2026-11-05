@@ -7,6 +7,7 @@ import { LiveIndicator, LiveProvider } from "./live";
 import { ThemeToggle } from "./theme";
 import { Icon, type IconName } from "./components/icons";
 import { Logo, LogoMark } from "./components/Logo";
+import { Assistant } from "./components/Assistant";
 import { AlarmsPage } from "./pages/AlarmsPage";
 import { AccountPage } from "./pages/AccountPage";
 import { AlarmPage } from "./pages/AlarmPage";
@@ -248,6 +249,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               <span className="hidden sm:inline">
                 <LiveIndicator />
               </span>
+              <Assistant />
               <ThemeToggle />
             </div>
           </div>
