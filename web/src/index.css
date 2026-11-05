@@ -185,3 +185,22 @@ body {
   color: var(--color-brand-600);
   font-weight: 600;
 }
+
+/* pulsos de luz nas fibras da tela de entrada */
+.lumio-pulse-path {
+  animation: lumio-flow 3.2s linear infinite;
+}
+@keyframes lumio-flow {
+  from {
+    stroke-dashoffset: 126;
+  }
+  to {
+    stroke-dashoffset: -400;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lumio-pulse-path {
+    animation: none;
+    opacity: 0;
+  }
+}
