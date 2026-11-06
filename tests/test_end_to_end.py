@@ -68,3 +68,31 @@ async def test_olt_fora_do_ar_e_volta(lab):
     await w.run_once(w.collect_status)
     kinds = [e["kind"] for e in lab.sink.of("event", olt="olt-1") if e["source"] == "poll"]
     assert kinds == ["olt_unreachable", "olt_reachable"]
+
+
+class FlakySink:
+    """Simula o Redis caindo (PC dormiu): as primeiras publicações falham."""
+
+    def __init__(self, inner, failures: int):
+        self.inner, self.failures = inner, failures
+
+    async def publish(self, record):
+        if self.failures:
+            self.failures -= 1
+            raise ConnectionError("Connection lost")
+        await self.inner.publish(record)
+
+
+async def test_coleta_sobrevive_a_queda_do_redis(lab):
+    """Uma falha ao enviar não pode matar o laço da OLT em silêncio: ele tenta de novo."""
+    from lumio_collector.poller import OltConfig, OltWorker
+
+    olt = lab.network.olt("olt-1")
+    w = OltWorker(OltConfig(name="olt-1", host="127.0.0.1", port=olt.port, timeout=0.5, retries=0,
+                            status_interval=0.05, optical_interval=0.05), lab.client, FlakySink(lab.sink, failures=3))
+    w.start()
+    try:
+        assert await lab.wait_for(lambda: lab.sink.of("onu_optical") and lab.sink.of("onu_status"), timeout=5)
+        assert all(not t.done() for t in w.tasks)
+    finally:
+        await w.stop()

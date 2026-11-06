@@ -38,7 +38,12 @@ class RedisStreamSink:
     def __init__(self, url: str, stream: str = "lumio:readings", maxlen: int = 100_000):
         import redis.asyncio as redis  # dependência opcional até a sprint 2
 
-        self.redis = redis.from_url(url)
+        # Timeouts e checagem periódica: depois de o PC dormir, a conexão antiga está
+        # morta; sem isso o envio pode travar ou falhar até alguém reiniciar o coletor.
+        self.redis = redis.from_url(
+            url, socket_timeout=10, socket_connect_timeout=10, socket_keepalive=True,
+            health_check_interval=30, retry_on_timeout=True,
+        )
         self.stream = stream
         self.maxlen = maxlen
 
