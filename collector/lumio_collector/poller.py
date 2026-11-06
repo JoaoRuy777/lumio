@@ -131,7 +131,14 @@ class OltWorker:
     async def _loop(self, job, interval: float) -> None:
         while True:
             start = time.monotonic()
-            await self.run_once(job)
+            try:
+                await self.run_once(job)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # Qualquer outra falha (ex.: Redis caiu quando o PC dormiu) não pode matar
+                # o laço em silêncio: registra e tenta de novo na próxima volta.
+                log.exception("falha na coleta de %s; tentando de novo em %.0f s", self.cfg.name, interval)
             await asyncio.sleep(max(0.0, interval - (time.monotonic() - start)))
 
     def start(self) -> None:
