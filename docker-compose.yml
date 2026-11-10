@@ -96,7 +96,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://lumio_system:${LUMIO_SYSTEM_DB_PASSWORD:-lumio-system-dev}@postgres:5432/${POSTGRES_DB:-lumio}
-      LUMIO_RETENTION_DAYS: ${LUMIO_RETENTION_DAYS:-90}
+      LUMIO_RETENTION_DAYS: ${LUMIO_RETENTION_DAYS:-31}
     depends_on:
       redis: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }

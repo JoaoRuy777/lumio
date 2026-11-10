@@ -442,7 +442,8 @@ A lista completa está em [`docs/plano.md`](docs/plano.md#decisões).
 ### Sprint 2
 
 - **Postgres puro, sem TimescaleDB**: o volume do MVP cabe numa tabela
-  indexada; o worker apaga leituras com mais de `LUMIO_RETENTION_DAYS` (90).
+  indexada; o worker apaga leituras com mais de `LUMIO_RETENTION_DAYS` (31: cobre o
+  gráfico de 30 dias e cabe no plano grátis do Neon).
 - **Migrações em SQL puro** com um script curto (`db/migrate.py`), sem Alembic/ORM.
 - **Papéis do banco**: o worker usa `lumio_system` (BYPASSRLS, processa todos
   os tenants); a API da sprint 3 vai usar `lumio_app`, sujeito ao RLS. Um teste

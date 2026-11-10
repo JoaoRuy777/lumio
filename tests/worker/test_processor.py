@@ -188,3 +188,20 @@ async def test_leitura_de_olt_excluida_e_descartada(processor, pool):
     await processor.handle(by_id())                       # cache velho: FK falha e é descartado
     await processor.handle(by_id())                       # cache limpo: ignorado direto
     assert await pool.fetchval("SELECT count(*) FROM olt_health_readings") == 0
+
+
+async def test_retencao_apaga_so_leituras_antigas(processor, pool):
+    from lumio_worker.__main__ import prune_readings
+
+    await processor.handle(rec("onu_status", onus=onus(n=1)))
+    await processor.handle(rec("onu_optical", onus=[{"pon": "0/1/0", "onu": 0, "rx_dbm": -20.0, "tx_dbm": 2.0}]))
+    await processor.handle(rec("olt_health", cpu=10, temperature=40, uptime_s=100))
+    # envelhece metade das leituras
+    for table in ("optical_readings", "olt_health_readings"):
+        await pool.execute(f"INSERT INTO {table} SELECT * FROM {table}")
+        await pool.execute(f"UPDATE {table} SET ts = now() - interval '40 days' WHERE ctid IN (SELECT ctid FROM {table} LIMIT 1)")
+
+    assert await prune_readings(pool, 31) == {"optical_readings": 1, "olt_health_readings": 1}
+    assert await pool.fetchval("SELECT count(*) FROM optical_readings") == 1
+    assert await pool.fetchval("SELECT min(ts) > now() - interval '1 day' FROM optical_readings")
+    assert await prune_readings(pool, 31) == {"optical_readings": 0, "olt_health_readings": 0}

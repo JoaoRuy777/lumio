@@ -47,7 +47,7 @@ services:
     environment:
       <<: *required
       DATABASE_URL: ${LUMIO_SYSTEM_DATABASE_URL:?rode scripts/neon_setup.py}
-      LUMIO_RETENTION_DAYS: ${LUMIO_RETENTION_DAYS:-90}
+      LUMIO_RETENTION_DAYS: ${LUMIO_RETENTION_DAYS:-31}
 
   notifier:
     build: ./worker
