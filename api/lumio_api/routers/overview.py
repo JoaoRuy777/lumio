@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter
 
 from .. import trend
 from ..deps import TenantDb, User
-from ..schemas import Overview, OverviewHistory
+from ..schemas import CollectionHealth, Overview, OverviewHistory
 from .alarms import fetch_alarms
-from .olts import OLT_SELECT, collection_status
+from .olts import LATE_FACTOR, OLT_SELECT, collection_status
 
 router = APIRouter(prefix="/overview", tags=["painel"])
 
@@ -81,3 +83,15 @@ async def overview_history(user: User, db: TenantDb) -> OverviewHistory:
     """Últimas 24 h, uma linha por hora: alarmes abertos naquela hora (por severidade),
     alarmes em aberto e ONUs offline ao fim de cada hora."""
     return OverviewHistory(hours=[dict(r) for r in await db.fetch(HISTORY_SQL)])
+
+
+@router.get("/collection", response_model=CollectionHealth)
+async def collection_health(user: User, db: TenantDb) -> CollectionHealth:
+    """A coleta está chegando? "Parada" = todas as OLTs ativas que já mandaram leitura
+    estão atrasadas (o coletor desligou, o PC dormiu, perdeu a rede...). Uma OLT só
+    atrasada já aparece como "atrasada" na tela de OLTs."""
+    rows = await db.fetch("SELECT last_poll_at, status_interval_s FROM olts WHERE enabled AND last_poll_at IS NOT NULL")
+    now = datetime.now(timezone.utc)
+    late = [r for r in rows if now - r["last_poll_at"] > timedelta(seconds=LATE_FACTOR * r["status_interval_s"])]
+    return CollectionHealth(stopped=bool(rows) and len(late) == len(rows),
+                            last_reading_at=max((r["last_poll_at"] for r in rows), default=None), olts=len(rows))

@@ -222,3 +222,19 @@ async def test_chassi_da_olt(client, net, pool):
 
     other = await signup(client, company="Provedor B", email="admin@b.com.br")
     assert (await client.get(f"/api/olts/{olt}/chassis", headers=other)).status_code == 404
+
+
+async def test_aviso_de_coleta_parada(client, net, pool):
+    h = net["headers"]
+    ok = (await client.get("/api/overview/collection", headers=h)).json()
+    assert ok["stopped"] is False and ok["olts"] == 1 and ok["last_reading_at"]
+
+    # o PC dormiu: nenhuma leitura há 1 hora
+    await pool.execute("UPDATE olts SET last_poll_at = now() - interval '1 hour'")
+    parada = (await client.get("/api/overview/collection", headers=h)).json()
+    assert parada["stopped"] is True
+
+    # provedor sem OLT coletada: não acusa coleta parada
+    outro = await signup(client, company="Provedor B", email="admin@b.com.br")
+    vazio = (await client.get("/api/overview/collection", headers=outro)).json()
+    assert vazio == {"stopped": False, "last_reading_at": None, "olts": 0}
