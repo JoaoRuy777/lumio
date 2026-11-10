@@ -15,7 +15,10 @@ afterEach(() => {
 describe("senha", () => {
   it("esqueci minha senha pede o e-mail e não diz se ele existe", async () => {
     const calls = mockApi({
-      "POST /auth/forgot": () => ({ status: 202, json: { detail: "se o e-mail estiver cadastrado, enviamos um link para redefinir a senha" } }),
+      "POST /auth/forgot": () => ({
+        status: 202,
+        json: { detail: "se o e-mail estiver cadastrado, enviamos um link para redefinir a senha" },
+      }),
     });
     renderWithQuery(<AuthPage onLogin={() => {}} />);
     await userEvent.click(screen.getByRole("button", { name: "Esqueci minha senha" }));
@@ -50,14 +53,17 @@ describe("senha", () => {
   });
 
   it("minha conta troca a senha e guarda a sessão nova", async () => {
-    const calls = mockApi({ "POST /auth/password": () => ({ json: { access_token: "token-novo", token_type: "bearer" } }) });
+    const calls = mockApi({
+      "POST /auth/password": () => ({ json: { access_token: "token-novo", token_type: "bearer" } }),
+      "GET /status-page": () => ({ json: { enabled: false, slug: "provedor-a" } }),
+    });
     renderWithQuery(<AccountPage me={me} />);
     await userEvent.type(screen.getByLabelText("Senha atual"), "senha-forte-123");
     await userEvent.type(screen.getByLabelText("Senha nova"), "senha-nova-456");
     await userEvent.type(screen.getByLabelText("Repita a senha nova"), "senha-diferente");
     await userEvent.click(screen.getByRole("button", { name: "Trocar senha" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("não são iguais");
-    expect(calls.length).toBe(0);
+    expect(calls.filter((c) => c.key === "POST /auth/password")).toHaveLength(0);
 
     await userEvent.clear(screen.getByLabelText("Repita a senha nova"));
     await userEvent.type(screen.getByLabelText("Repita a senha nova"), "senha-nova-456");

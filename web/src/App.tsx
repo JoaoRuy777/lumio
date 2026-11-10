@@ -29,6 +29,7 @@ import { CustomersPage } from "./pages/CustomersPage";
 const MapPage = lazy(() => import("./pages/MapPage").then((m) => ({ default: m.MapPage })));
 const TvPage = lazy(() => import("./pages/TvPage").then((m) => ({ default: m.TvPage })));
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
+import { StatusPage } from "./pages/StatusPage";
 import { UsersPage } from "./pages/UsersPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { AuditPage } from "./pages/AuditPage";
@@ -48,6 +49,9 @@ export function App() {
     return () => window.removeEventListener(LOGOUT_EVENT, onLogout);
   }, [qc]);
 
+  // página pública de status do provedor: qualquer pessoa abre, sem login
+  const statusSlug = /^\/status\/([^/]+)\/?$/.exec(window.location.pathname)?.[1];
+  if (statusSlug) return <StatusPage slug={decodeURIComponent(statusSlug)} />;
   // link do e-mail de "esqueci minha senha": abre logado ou não
   if (window.location.pathname === "/redefinir-senha") return <ResetPasswordPage />;
   if (!loggedIn) return <AuthPage onLogin={() => setLoggedIn(true)} />;

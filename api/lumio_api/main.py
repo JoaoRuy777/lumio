@@ -14,7 +14,8 @@ from lumio_collector.snmp import SnmpClient
 
 from .config import Settings
 from .db import create_pool
-from .routers import alarms, assistant, audit_log, auth, channels, customers, escalation, events, internal, maintenance, network, olts, overview, reports, users
+from .routers import (alarms, assistant, audit_log, auth, channels, customers, escalation, events, internal, maintenance,
+                      network, olts, overview, reports, status_page, users)
 from .security import Cipher
 
 
@@ -82,6 +83,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(escalation.router)
     api.include_router(audit_log.router)
     api.include_router(assistant.router)
+    api.include_router(status_page.router)
+    api.include_router(status_page.public_router)
     api.include_router(internal.router)
     app.include_router(api)
     return app

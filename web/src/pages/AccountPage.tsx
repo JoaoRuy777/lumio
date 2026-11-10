@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { api, ApiError, session, type Me } from "../api";
 import { Button, Card, Field, inputClass } from "../components/ui";
 import { roleLabel } from "./UsersPage";
+import { StatusPageSettings } from "../components/StatusPageSettings";
 
 export function AccountPage({ me }: { me: Me }) {
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
@@ -91,6 +92,7 @@ export function AccountPage({ me }: { me: Me }) {
           </Button>
         </form>
       </Card>
+      {me.role === "admin" && <StatusPageSettings />}
     </div>
   );
 }

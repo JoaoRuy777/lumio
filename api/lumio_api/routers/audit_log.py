@@ -41,9 +41,10 @@ ACTION_LABEL = {
     "customer.import": "Importou clientes (CSV)",
     "customer.delete": "Removeu cliente",
     "assistant.ask": "Perguntou ao assistente de IA",
+    "status_page.update": "Alterou a página pública de status",
 }
 
-Category = Literal["auth", "user", "olt", "channel", "escalation", "maintenance", "customer", "assistant"]
+Category = Literal["auth", "user", "olt", "channel", "escalation", "maintenance", "customer", "assistant", "status_page"]
 
 
 class AuditEntry(BaseModel):
