@@ -208,6 +208,12 @@ export interface Page<T> {
   total: number;
 }
 
+export interface CollectionHealth {
+  stopped: boolean;
+  last_reading_at: string | null;
+  olts: number;
+}
+
 export interface Overview {
   olts: Record<"total" | "ok" | "error" | "late" | "pending" | "disabled", number>;
   onus: Record<"total" | "online" | "offline" | "unknown", number>;

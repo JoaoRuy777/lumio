@@ -321,5 +321,11 @@ class HourPoint(BaseModel):
     onus_offline: int            # ONUs offline ao fim da hora
 
 
+class CollectionHealth(BaseModel):
+    stopped: bool                     # nenhuma OLT (já coletada) manda leitura há mais de 3 intervalos
+    last_reading_at: datetime | None  # última leitura de qualquer OLT ativa
+    olts: int                         # OLTs ativas que já foram coletadas alguma vez
+
+
 class OverviewHistory(BaseModel):
     hours: list[HourPoint]       # 24 pontos, do mais antigo para agora

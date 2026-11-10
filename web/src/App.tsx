@@ -10,6 +10,7 @@ import { Logo, LogoMark } from "./components/Logo";
 import { Assistant } from "./components/Assistant";
 import { CriticalAlerts } from "./components/CriticalAlerts";
 import { GlobalSearch } from "./components/GlobalSearch";
+import { CollectionBanner } from "./components/CollectionBanner";
 import { ToastProvider } from "./toast";
 import { AlarmsPage } from "./pages/AlarmsPage";
 import { AccountPage } from "./pages/AccountPage";
@@ -263,6 +264,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                 <ThemeToggle />
               </div>
             </div>
+            <CollectionBanner />
           </header>
           <main className="mx-auto max-w-[1400px] px-4 py-6 lg:px-8 lg:py-8">
             <Outlet />
