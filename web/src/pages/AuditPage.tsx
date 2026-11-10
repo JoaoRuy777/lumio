@@ -15,6 +15,7 @@ const CATEGORIES: { value: AuditCategory | ""; label: string }[] = [
   { value: "escalation", label: "Escalonamento" },
   { value: "maintenance", label: "Manutenção" },
   { value: "customer", label: "Clientes" },
+  { value: "status_page", label: "Página pública" },
 ];
 
 // ações de segurança ganham destaque

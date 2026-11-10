@@ -519,7 +519,7 @@ export interface EscalationRule {
 
 // ------------------------------------------------------------------ auditoria
 
-export type AuditCategory = "auth" | "user" | "olt" | "channel" | "escalation" | "maintenance" | "customer";
+export type AuditCategory = "auth" | "user" | "olt" | "channel" | "escalation" | "maintenance" | "customer" | "status_page";
 
 export interface AuditEntry {
   id: string;
